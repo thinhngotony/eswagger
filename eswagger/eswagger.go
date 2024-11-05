@@ -37,75 +37,6 @@ type RouteMetadata struct {
 	Endpoints map[string]map[string]EndpointMetadata // path -> method -> metadata
 }
 
-func (g *Generator) extractPathParameters(method string) []spec.Parameter {
-	var params []spec.Parameter
-	// Add common parameters like ID for path parameters
-	if strings.Contains(method, "{id}") {
-		params = append(params, spec.Parameter{
-			ParamProps: spec.ParamProps{
-				Name:     "id",
-				In:       "path",
-				Required: true,
-				Schema:   spec.Int64Property(),
-			},
-		})
-	}
-	return params
-}
-
-func (g *Generator) addRequestBody(operation *spec.Operation, reqType reflect.Type, example interface{}) {
-	schema := g.generateSchema(reqType)
-	g.swagger.Definitions[reqType.Name()] = *schema
-
-	operation.Parameters = append(operation.Parameters, spec.Parameter{
-		ParamProps: spec.ParamProps{
-			Name:     "body",
-			In:       "body",
-			Required: true,
-			Schema: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Ref: spec.MustCreateRef("#/definitions/" + reqType.Name()),
-				},
-			},
-		},
-	})
-
-	if example != nil {
-		exampleBytes, _ := json.MarshalIndent(example, "", "  ")
-		operation.Parameters[len(operation.Parameters)-1].Example = json.RawMessage(exampleBytes)
-	}
-}
-
-func (g *Generator) addResponse(operation *spec.Operation, respType reflect.Type, example interface{}) {
-	schema := g.generateSchema(respType)
-	g.swagger.Definitions[respType.Name()] = *schema
-
-	response := spec.Response{
-		ResponseProps: spec.ResponseProps{
-			Schema: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Ref: spec.MustCreateRef("#/definitions/" + respType.Name()),
-				},
-			},
-		},
-	}
-
-	if example != nil {
-		exampleBytes, _ := json.MarshalIndent(example, "", "  ")
-		response.Examples = map[string]interface{}{
-			"application/json": json.RawMessage(exampleBytes),
-		}
-	}
-
-	operation.Responses = &spec.Responses{
-		ResponsesProps: spec.ResponsesProps{
-			StatusCodeResponses: map[int]spec.Response{
-				http.StatusOK: response,
-			},
-		},
-	}
-}
-
 func (g *Generator) convertMuxPathToSwagger(muxPath string) string {
 	// Convert {param} to {param}
 	return muxPath
@@ -151,59 +82,6 @@ func (g *Generator) SaveSwagger(format string) error {
 
 func (g *Generator) GetSwaggerSpec() *spec.Swagger {
 	return g.swagger
-}
-
-func (g *Generator) extractRequestType(handlerType reflect.Type) reflect.Type {
-	// Look for *http.Request parameter
-	for i := 0; i < handlerType.NumIn(); i++ {
-		paramType := handlerType.In(i)
-		if paramType.Kind() == reflect.Ptr && paramType.Elem().Name() == "Request" {
-			return paramType
-		}
-	}
-	return nil
-}
-
-func (g *Generator) addRequestBodyWithoutExample(operation *spec.Operation, reqType reflect.Type) {
-	schema := g.generateSchema(reqType)
-	g.swagger.Definitions[reqType.Name()] = *schema
-
-	operation.Parameters = append(operation.Parameters, spec.Parameter{
-		ParamProps: spec.ParamProps{
-			Name:     "body",
-			In:       "body",
-			Required: true,
-			Schema: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Ref: spec.MustCreateRef("#/definitions/" + reqType.Name()),
-				},
-			},
-		},
-	})
-}
-
-func (g *Generator) addDefaultResponse(operation *spec.Operation, method string) {
-	var statusCode int
-	switch method {
-	case "POST":
-		statusCode = http.StatusCreated
-	case "DELETE":
-		statusCode = http.StatusNoContent
-	default:
-		statusCode = http.StatusOK
-	}
-
-	operation.Responses = &spec.Responses{
-		ResponsesProps: spec.ResponsesProps{
-			StatusCodeResponses: map[int]spec.Response{
-				statusCode: {
-					ResponseProps: spec.ResponseProps{
-						Description: http.StatusText(statusCode),
-					},
-				},
-			},
-		},
-	}
 }
 
 func (g *Generator) generateSummary(handlerName, method string) string {
@@ -257,15 +135,7 @@ type CreateUserRequest struct {
 
 type UpdateUserRequest struct {
 	Username string `json:"update_username,omitempty"`
-	Email    string `json:"updateemail,omitempty"`
-}
-
-func (g *Generator) registerTypes(types ...interface{}) {
-	for _, t := range types {
-		typ := reflect.TypeOf(t)
-		schema := g.generateSchema(typ)
-		g.swagger.Definitions[typ.Name()] = *schema
-	}
+	Email    string `json:"update_email,omitempty"`
 }
 
 func (g *Generator) generateOperationFromHandler(handler interface{}, method string, path string) *spec.Operation {
@@ -314,61 +184,6 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 				Name:        "id",
 				In:          "path",
 				Required:    true,
-			},
-		})
-	}
-
-	return operation
-}
-
-func (g *Generator) generateOperationFromHandler1(handler interface{}, method string, path string) *spec.Operation {
-	handlerValue := reflect.ValueOf(handler)
-	handlerName := runtime.FuncForPC(handlerValue.Pointer()).Name()
-
-	operation := &spec.Operation{
-		OperationProps: spec.OperationProps{
-			Summary:     g.generateSummary(handlerName, method),
-			Description: g.generateDescription(handlerName, method),
-			Tags:        []string{g.extractResourceName(path)},
-			Produces:    []string{"application/json"},
-			Consumes:    []string{"application/json"},
-			Responses:   g.generateResponses(method, path),
-		},
-	}
-
-	// Add request body for POST/PUT/PATCH
-	if method == "POST" || method == "PUT" || method == "PATCH" {
-		reqSchema := g.getRequestSchema(path, method)
-		if reqSchema != "" {
-			operation.Parameters = append(operation.Parameters, spec.Parameter{
-				ParamProps: spec.ParamProps{
-					Name:     "body",
-					In:       "body",
-					Required: true,
-					Schema: &spec.Schema{
-						SchemaProps: spec.SchemaProps{
-							Ref: spec.MustCreateRef(reqSchema),
-						},
-					},
-				},
-			})
-		}
-	}
-
-	// Add path parameters - Fixed version
-	if strings.Contains(path, "{id}") {
-		operation.Parameters = append(operation.Parameters, spec.Parameter{
-			ParamProps: spec.ParamProps{
-				Description: "ID of the resource",
-				Name:        "id",
-				In:          "path",
-				Required:    true,
-				Schema: &spec.Schema{
-					SchemaProps: spec.SchemaProps{
-						Type:   []string{"integer"},
-						Format: "int64",
-					},
-				},
 			},
 		})
 	}
@@ -453,8 +268,6 @@ func (g *Generator) getFieldSchema(t reflect.Type) *spec.Schema {
 	return nil
 }
 
-// ---
-// TypeMapping stores the mapping between endpoints and their request/response types
 type TypeMapping struct {
 	RequestType  reflect.Type
 	ResponseType reflect.Type
@@ -614,30 +427,6 @@ func (g *Generator) RegisterModels(models ...interface{}) {
 		schema := g.generateSchema(typ)
 		g.swagger.Definitions[typ.Name()] = *schema
 	}
-}
-
-// GetMethodStructs extracts the input and output struct instances for a given method from an interface
-func GetMethodStructs(i interface{}, methodName string) (interface{}, interface{}, error) {
-	method := reflect.ValueOf(i).MethodByName(methodName)
-	if !method.IsValid() {
-		return nil, nil, fmt.Errorf("method %s not found", methodName)
-	}
-
-	// Get the method type and validate it has the expected signature
-	methodType := method.Type()
-	if methodType.NumIn() != 1 || methodType.NumOut() != 2 {
-		return nil, nil, fmt.Errorf("method %s does not have expected signature", methodName)
-	}
-
-	// Instantiate zero values for input and output types
-	inputType := methodType.In(0)
-	outputType := methodType.Out(0)
-
-	// Create instances of the input and output structs
-	inputInstance := reflect.New(inputType).Elem().Interface()
-	outputInstance := reflect.New(outputType).Elem().Interface()
-
-	return inputInstance, outputInstance, nil
 }
 
 type MethodStructs struct {
