@@ -35,6 +35,14 @@
             "description": "Created",
             "schema": {
               "$ref": "#/definitions/User"
+            },
+            "examples": {
+              "application/json": {
+                "id": 0,
+                "username": "",
+                "email": "",
+                "created_at": "0001-01-01T00:00:00Z"
+              }
             }
           }
         }
@@ -59,7 +67,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/UpdateUserRequest"
+              "$ref": "#/definitions/CreateUserRequest"
             }
           },
           {
@@ -76,6 +84,14 @@
             "description": "OK",
             "schema": {
               "$ref": "#/definitions/User"
+            },
+            "examples": {
+              "application/json": {
+                "id": 0,
+                "username": "",
+                "email": "",
+                "created_at": "0001-01-01T00:00:00Z"
+              }
             }
           }
         }
@@ -89,17 +105,6 @@
         "username",
         "email"
       ],
-      "properties": {
-        "email": {
-          "type": "string"
-        },
-        "username": {
-          "type": "string"
-        }
-      }
-    },
-    "UpdateUserRequest": {
-      "type": "object",
       "properties": {
         "email": {
           "type": "string"

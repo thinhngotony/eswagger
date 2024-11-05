@@ -39,7 +39,6 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 func main() {
 	r := mux.NewRouter()
 
-	// Initialize swagger generator with configuration
 	swaggerGen := eswagger.NewGenerator(eswagger.Config{
 		Title:       "User Management API",
 		Description: "API for managing users",
@@ -52,9 +51,8 @@ func main() {
 	r.HandleFunc("/users", createUser).Methods("POST")
 	r.HandleFunc("/users/{id}", getUser).Methods("GET")
 	r.HandleFunc("/users/{id}", updateUser).Methods("PUT")
-	// r.HandleFunc("/users/{id}", deleteUser).Methods("DELETE")
 
-	// Generate swagger documentation from router
+	// Generate swagger documentation
 	if err := swaggerGen.GenerateFromRouter(r, eswagger.RouteMetadata{}); err != nil {
 		log.Fatal("Failed to generate swagger documentation:", err)
 	}
@@ -77,8 +75,6 @@ func main() {
 
 	fmt.Println("Server starting on :8080")
 	fmt.Println("Swagger UI available at: http://localhost:8080/swagger/")
-	fmt.Printf("Swagger YAML available at: http://localhost:8080/swagger.%s\n", "yaml")
-	fmt.Printf("Swagger JSON available at: http://localhost:8080/swagger.%s\n", "json")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }

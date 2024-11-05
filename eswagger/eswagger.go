@@ -23,12 +23,6 @@ type Config struct {
 	DocPath     string
 }
 
-type Generator struct {
-	swagger *spec.Swagger
-	config  Config
-	routes  map[string]map[string]interface{} // path -> method -> handler
-}
-
 type EndpointMetadata struct {
 	Summary     string
 	Description string
@@ -159,30 +153,6 @@ func (g *Generator) GetSwaggerSpec() *spec.Swagger {
 	return g.swagger
 }
 
-func NewGenerator(config Config) *Generator {
-	return &Generator{
-		swagger: &spec.Swagger{
-			SwaggerProps: spec.SwaggerProps{
-				Swagger: "2.0",
-				Info: &spec.Info{
-					InfoProps: spec.InfoProps{
-						Title:       config.Title,
-						Description: config.Description,
-						Version:     config.Version,
-					},
-				},
-				BasePath: config.BasePath,
-				Paths: &spec.Paths{
-					Paths: make(map[string]spec.PathItem),
-				},
-				Definitions: make(map[string]spec.Schema),
-			},
-		},
-		config: config,
-		routes: make(map[string]map[string]interface{}),
-	}
-}
-
 func (g *Generator) extractRequestType(handlerType reflect.Type) reflect.Type {
 	// Look for *http.Request parameter
 	for i := 0; i < handlerType.NumIn(); i++ {
@@ -286,45 +256,6 @@ type CreateUserRequest struct {
 type UpdateUserRequest struct {
 	Username string `json:"username,omitempty"`
 	Email    string `json:"email,omitempty"`
-}
-
-func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
-	// Pre-register all struct types used in handlers
-	g.registerTypes(
-		User{},
-		CreateUserRequest{},
-		UpdateUserRequest{},
-	)
-
-	return router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
-		pathTemplate, err := route.GetPathTemplate()
-		if err != nil {
-			return nil
-		}
-
-		methods, err := route.GetMethods()
-		if err != nil {
-			return nil
-		}
-
-		if g.routes[pathTemplate] == nil {
-			g.routes[pathTemplate] = make(map[string]interface{})
-		}
-
-		handler := route.GetHandler()
-		pathItem := spec.PathItem{}
-
-		for _, method := range methods {
-			g.routes[pathTemplate][method] = handler
-			operation := g.generateOperationFromHandler(handler, method, pathTemplate)
-			g.addOperationToPathItem(&pathItem, method, operation)
-		}
-
-		swaggerPath := g.convertMuxPathToSwagger(pathTemplate)
-		g.swagger.Paths.Paths[swaggerPath] = pathItem
-
-		return nil
-	})
 }
 
 func (g *Generator) registerTypes(types ...interface{}) {
@@ -443,79 +374,6 @@ func (g *Generator) generateOperationFromHandler1(handler interface{}, method st
 	return operation
 }
 
-func (g *Generator) getRequestSchema(path, method string) string {
-	switch {
-	case path == "/users" && method == "POST":
-		return "#/definitions/CreateUserRequest"
-	case strings.HasPrefix(path, "/users/") && method == "PUT":
-		return "#/definitions/UpdateUserRequest"
-	default:
-		return ""
-	}
-}
-
-func (g *Generator) generateResponses(method, path string) *spec.Responses {
-	responses := &spec.Responses{
-		ResponsesProps: spec.ResponsesProps{
-			StatusCodeResponses: make(map[int]spec.Response),
-		},
-	}
-
-	var statusCode int
-	var schema *spec.Schema
-
-	switch method {
-	case "GET":
-		statusCode = http.StatusOK
-		schema = &spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Ref: spec.MustCreateRef("#/definitions/User"),
-			},
-		}
-	case "POST":
-		statusCode = http.StatusCreated
-		schema = &spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Ref: spec.MustCreateRef("#/definitions/User"),
-			},
-		}
-	case "PUT":
-		statusCode = http.StatusOK
-		schema = &spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Ref: spec.MustCreateRef("#/definitions/User"),
-			},
-		}
-	case "DELETE":
-		statusCode = http.StatusNoContent
-		schema = nil
-	default:
-		statusCode = http.StatusOK
-	}
-
-	response := spec.Response{
-		ResponseProps: spec.ResponseProps{
-			Description: http.StatusText(statusCode),
-		},
-	}
-
-	if schema != nil {
-		response.Schema = schema
-
-		//// Add example response if available
-		//if example := getExampleResponse(method, path); example != nil {
-		//	exampleBytes, err := json.Marshal(example)
-		//	if err == nil {
-		//		response.Examples = map[string]interface{}{
-		//			"application/json": json.RawMessage(exampleBytes),
-		//		}
-		//	}
-		//}
-	}
-
-	responses.StatusCodeResponses[statusCode] = response
-	return responses
-}
 func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 	schema := &spec.Schema{
 		SchemaProps: spec.SchemaProps{
@@ -591,4 +449,216 @@ func (g *Generator) getFieldSchema(t reflect.Type) *spec.Schema {
 		return nil
 	}
 	return nil
+}
+
+// ---
+// TypeMapping stores the mapping between endpoints and their request/response types
+type TypeMapping struct {
+	RequestType  reflect.Type
+	ResponseType reflect.Type
+}
+
+type Generator struct {
+	swagger      *spec.Swagger
+	config       Config
+	routes       map[string]map[string]interface{}
+	typeMappings map[string]map[string]TypeMapping // path -> method -> types
+}
+
+func NewGenerator(config Config) *Generator {
+	return &Generator{
+		swagger: &spec.Swagger{
+			SwaggerProps: spec.SwaggerProps{
+				Swagger: "2.0",
+				Info: &spec.Info{
+					InfoProps: spec.InfoProps{
+						Title:       config.Title,
+						Description: config.Description,
+						Version:     config.Version,
+					},
+				},
+				BasePath: config.BasePath,
+				Paths: &spec.Paths{
+					Paths: make(map[string]spec.PathItem),
+				},
+				Definitions: make(map[string]spec.Schema),
+			},
+		},
+		config:       config,
+		routes:       make(map[string]map[string]interface{}),
+		typeMappings: make(map[string]map[string]TypeMapping),
+	}
+}
+
+// RegisterEndpoint registers the request and response types for an endpoint
+func (g *Generator) RegisterEndpoint(path, method string, requestType, responseType interface{}) {
+	if g.typeMappings[path] == nil {
+		g.typeMappings[path] = make(map[string]TypeMapping)
+	}
+
+	mapping := TypeMapping{}
+	if requestType != nil {
+		mapping.RequestType = reflect.TypeOf(requestType)
+		// Pre-register the type in definitions
+		g.registerType(requestType)
+	}
+	if responseType != nil {
+		mapping.ResponseType = reflect.TypeOf(responseType)
+		// Pre-register the type in definitions
+		g.registerType(responseType)
+	}
+
+	g.typeMappings[path][strings.ToUpper(method)] = mapping
+}
+
+func (g *Generator) registerType(t interface{}) {
+	typ := reflect.TypeOf(t)
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+	schema := g.generateSchema(typ)
+	g.swagger.Definitions[typ.Name()] = *schema
+}
+
+func (g *Generator) getRequestSchema(path, method string) string {
+	if mapping, ok := g.typeMappings[path][method]; ok && mapping.RequestType != nil {
+		return "#/definitions/" + mapping.RequestType.Name()
+	}
+	return ""
+}
+
+func (g *Generator) getResponseType(path, method string) reflect.Type {
+	if mapping, ok := g.typeMappings[path][method]; ok {
+		return mapping.ResponseType
+	}
+	return nil
+}
+
+func (g *Generator) generateResponses(method, path string) *spec.Responses {
+	responses := &spec.Responses{
+		ResponsesProps: spec.ResponsesProps{
+			StatusCodeResponses: make(map[int]spec.Response),
+		},
+	}
+
+	var statusCode int
+	var schema *spec.Schema
+
+	switch method {
+	case "GET":
+		statusCode = http.StatusOK
+	case "POST":
+		statusCode = http.StatusCreated
+	case "PUT":
+		statusCode = http.StatusOK
+	case "DELETE":
+		statusCode = http.StatusNoContent
+	default:
+		statusCode = http.StatusOK
+	}
+
+	response := spec.Response{
+		ResponseProps: spec.ResponseProps{
+			Description: http.StatusText(statusCode),
+		},
+	}
+
+	// Get response type from registered mappings
+	if respType := g.getResponseType(path, method); respType != nil && statusCode != http.StatusNoContent {
+		schema = &spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Ref: spec.MustCreateRef("#/definitions/" + respType.Name()),
+			},
+		}
+		response.Schema = schema
+
+		// Generate example response
+		if example := g.generateExample(respType); example != nil {
+			exampleBytes, err := json.Marshal(example)
+			if err == nil {
+				response.Examples = map[string]interface{}{
+					"application/json": json.RawMessage(exampleBytes),
+				}
+			}
+		}
+	}
+
+	responses.StatusCodeResponses[statusCode] = response
+	return responses
+}
+
+// generateExample creates an example instance of the given type
+func (g *Generator) generateExample(t reflect.Type) interface{} {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	// Create a new instance of the type
+	v := reflect.New(t).Interface()
+
+	// You could add logic here to populate the instance with example data
+	// based on field names or tags
+
+	return v
+}
+
+// RegisterModels registers all model types that should appear in swagger definitions
+func (g *Generator) RegisterModels(models ...interface{}) {
+	for _, model := range models {
+		typ := reflect.TypeOf(model)
+		if typ.Kind() == reflect.Ptr {
+			typ = typ.Elem()
+		}
+		schema := g.generateSchema(typ)
+		g.swagger.Definitions[typ.Name()] = *schema
+	}
+}
+
+func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
+	// First register all common models
+	// g.RegisterModels(
+	// 	User{},
+	// 	CreateUserRequest{},
+	// 	UpdateUserRequest{},
+	// )
+
+	// // Register endpoints
+	// g.RegisterEndpoint("/users", "POST", CreateUserRequest{}, User{})
+	// g.RegisterEndpoint("/users/{id}", "GET", nil, User{})
+	// g.RegisterEndpoint("/users/{id}", "PUT", UpdateUserRequest{}, User{})
+	// g.RegisterEndpoint("/users/{id}", "DELETE", nil, nil)
+
+	return router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		pathTemplate, err := route.GetPathTemplate()
+		if err != nil {
+			return nil
+		}
+
+		methods, err := route.GetMethods()
+		if err != nil {
+			log.Panic(err)
+			return nil
+		}
+
+		g.RegisterEndpoint(pathTemplate, strings.Join(methods, ""), CreateUserRequest{}, User{})
+
+		if g.routes[pathTemplate] == nil {
+			g.routes[pathTemplate] = make(map[string]interface{})
+		}
+
+		handler := route.GetHandler()
+
+		pathItem := spec.PathItem{}
+
+		for _, method := range methods {
+			g.routes[pathTemplate][method] = handler
+			operation := g.generateOperationFromHandler(handler, method, pathTemplate)
+			g.addOperationToPathItem(&pathItem, method, operation)
+		}
+
+		swaggerPath := g.convertMuxPathToSwagger(pathTemplate)
+		g.swagger.Paths.Paths[swaggerPath] = pathItem
+
+		return nil
+	})
 }
