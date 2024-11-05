@@ -1,4 +1,3 @@
-// pkg/eswagger/types.go
 package eswagger
 
 import (
@@ -42,37 +41,6 @@ type EndpointMetadata struct {
 
 type RouteMetadata struct {
 	Endpoints map[string]map[string]EndpointMetadata // path -> method -> metadata
-}
-
-func (g *Generator) generateOperation(handler interface{}, method string, metadata EndpointMetadata) *spec.Operation {
-	operation := &spec.Operation{
-		OperationProps: spec.OperationProps{
-			Summary:     metadata.Summary,
-			Description: metadata.Description,
-			Tags:        metadata.Tags,
-			Produces:    []string{"application/json"},
-			Consumes:    []string{"application/json"},
-		},
-	}
-
-	// Extract request and response types from metadata examples
-	if metadata.Examples.Request != nil {
-		reqType := reflect.TypeOf(metadata.Examples.Request)
-		g.addRequestBody(operation, reqType, metadata.Examples.Request)
-	}
-
-	if metadata.Examples.Response != nil {
-		respType := reflect.TypeOf(metadata.Examples.Response)
-		g.addResponse(operation, respType, metadata.Examples.Response)
-	}
-
-	// Add path parameters if they exist
-	pathParams := g.extractPathParameters(method)
-	if len(pathParams) > 0 {
-		operation.Parameters = append(operation.Parameters, pathParams...)
-	}
-
-	return operation
 }
 
 func (g *Generator) extractPathParameters(method string) []spec.Parameter {
@@ -272,7 +240,7 @@ func (g *Generator) generateSummary(handlerName, method string) string {
 	parts := strings.Split(handlerName, ".")
 	if len(parts) > 0 {
 		funcName := parts[len(parts)-1]
-		return strings.Title(strings.Join(strings.Split(funcName, ""), " "))
+		return strings.ToTitle(strings.Join(strings.Split(funcName, ""), " "))
 	}
 	return fmt.Sprintf("%s operation", method)
 }
@@ -533,12 +501,21 @@ func (g *Generator) generateResponses(method, path string) *spec.Responses {
 
 	if schema != nil {
 		response.Schema = schema
+
+		//// Add example response if available
+		//if example := getExampleResponse(method, path); example != nil {
+		//	exampleBytes, err := json.Marshal(example)
+		//	if err == nil {
+		//		response.Examples = map[string]interface{}{
+		//			"application/json": json.RawMessage(exampleBytes),
+		//		}
+		//	}
+		//}
 	}
 
 	responses.StatusCodeResponses[statusCode] = response
 	return responses
 }
-
 func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 	schema := &spec.Schema{
 		SchemaProps: spec.SchemaProps{
@@ -609,6 +586,9 @@ func (g *Generator) getFieldSchema(t reflect.Type) *spec.Schema {
 				},
 			}
 		}
+	default:
+		//TODO("unhandled default case")
+		return nil
 	}
 	return nil
 }

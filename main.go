@@ -36,10 +36,6 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-// Domain models
-
-// ... (keep your existing handlers) ...
-
 func main() {
 	r := mux.NewRouter()
 
