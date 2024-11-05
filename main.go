@@ -11,29 +11,43 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-func createUser(w http.ResponseWriter, r *http.Request) {
-	var req eswagger.CreateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+func CreateUser(s eswagger.UserSvc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req eswagger.CreateUserRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		s.CreateUser(req)
+		user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
+		json.NewEncoder(w).Encode(user)
 	}
-	user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
-	json.NewEncoder(w).Encode(user)
 }
 
-func getUser(w http.ResponseWriter, r *http.Request) {
-	user := eswagger.User{ID: 1, Username: "testuser", Email: "test@example.com"}
-	json.NewEncoder(w).Encode(user)
+func DeleteUser(s eswagger.UserSvc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req eswagger.CreateUserRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		s.DeleteUser(1)
+		user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
+		json.NewEncoder(w).Encode(user)
+	}
 }
 
-func updateUser(w http.ResponseWriter, r *http.Request) {
-	var req eswagger.UpdateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+func updateUser(s eswagger.UserSvc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req eswagger.UpdateUserRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		s.UpdateUser(req)
+		user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
+		json.NewEncoder(w).Encode(user)
 	}
-	user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
-	json.NewEncoder(w).Encode(user)
 }
 
 func main() {
@@ -47,10 +61,11 @@ func main() {
 		DocPath:     "doc",
 	})
 
+	userSvc := eswagger.UserSvc{}
 	// Register routes
-	r.HandleFunc("/users", createUser).Methods("POST")
-	r.HandleFunc("/users/{id}", getUser).Methods("GET")
-	r.HandleFunc("/users/{id}", updateUser).Methods("PUT")
+	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
+	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("GET")
+	r.HandleFunc("/users/{id}", updateUser(userSvc)).Methods("PUT")
 
 	// Generate swagger documentation
 	if err := swaggerGen.GenerateFromRouter(r, eswagger.RouteMetadata{}); err != nil {

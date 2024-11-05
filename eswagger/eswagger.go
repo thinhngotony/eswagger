@@ -232,6 +232,8 @@ func (g *Generator) generateDescription(handlerName, method string) string {
 }
 
 func (g *Generator) extractResourceName(path string) string {
+
+	log.Println(">>>>>>>>>>>>>>>>>:", path)
 	parts := strings.Split(path, "/")
 	for _, part := range parts {
 		if part != "" && !strings.Contains(part, "{") {
@@ -254,8 +256,8 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserRequest struct {
-	Username string `json:"username,omitempty"`
-	Email    string `json:"email,omitempty"`
+	Username string `json:"update_username,omitempty"`
+	Email    string `json:"updateemail,omitempty"`
 }
 
 func (g *Generator) registerTypes(types ...interface{}) {
@@ -614,19 +616,84 @@ func (g *Generator) RegisterModels(models ...interface{}) {
 	}
 }
 
-func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
-	// First register all common models
-	// g.RegisterModels(
-	// 	User{},
-	// 	CreateUserRequest{},
-	// 	UpdateUserRequest{},
-	// )
+// GetMethodStructs extracts the input and output struct instances for a given method from an interface
+func GetMethodStructs(i interface{}, methodName string) (interface{}, interface{}, error) {
+	method := reflect.ValueOf(i).MethodByName(methodName)
+	if !method.IsValid() {
+		return nil, nil, fmt.Errorf("method %s not found", methodName)
+	}
 
-	// // Register endpoints
-	// g.RegisterEndpoint("/users", "POST", CreateUserRequest{}, User{})
-	// g.RegisterEndpoint("/users/{id}", "GET", nil, User{})
-	// g.RegisterEndpoint("/users/{id}", "PUT", UpdateUserRequest{}, User{})
-	// g.RegisterEndpoint("/users/{id}", "DELETE", nil, nil)
+	// Get the method type and validate it has the expected signature
+	methodType := method.Type()
+	if methodType.NumIn() != 1 || methodType.NumOut() != 2 {
+		return nil, nil, fmt.Errorf("method %s does not have expected signature", methodName)
+	}
+
+	// Instantiate zero values for input and output types
+	inputType := methodType.In(0)
+	outputType := methodType.Out(0)
+
+	// Create instances of the input and output structs
+	inputInstance := reflect.New(inputType).Elem().Interface()
+	outputInstance := reflect.New(outputType).Elem().Interface()
+
+	return inputInstance, outputInstance, nil
+}
+
+type MethodStructs struct {
+	Input  interface{}
+	Output interface{}
+}
+
+type UserSvc struct{}
+
+func (m UserSvc) CreateUser(input CreateUserRequest) (User, error) {
+	return User{ID: 1, Username: input.Username, Email: input.Email}, nil
+}
+
+func (m UserSvc) UpdateUser(input UpdateUserRequest) (User, error) {
+	return User{ID: 1, Username: input.Username, Email: input.Email}, nil
+}
+
+func (m UserSvc) DeleteUser(id int) error {
+	return nil
+}
+
+func GetInterfaceMethods(i interface{}) (map[string]MethodStructs, error) {
+	methods := make(map[string]MethodStructs)
+	val := reflect.ValueOf(i)
+	typ := reflect.TypeOf(i)
+
+	for j := 0; j < val.NumMethod(); j++ {
+		method := val.Method(j)
+		methodType := method.Type()
+		methodName := typ.Method(j).Name
+
+		// Check for methods with an input and output
+		if methodType.NumIn() == 1 && methodType.NumOut() >= 1 {
+			inputType := methodType.In(0)
+			outputType := methodType.Out(0)
+
+			// Instantiate the input and output structs if they are structs
+			var inputInstance, outputInstance interface{}
+			if inputType.Kind() == reflect.Struct {
+				inputInstance = reflect.New(inputType).Elem().Interface()
+			}
+			if outputType.Kind() == reflect.Struct {
+				outputInstance = reflect.New(outputType).Elem().Interface()
+			}
+
+			// Store the instances in the map
+			methods[methodName] = MethodStructs{
+				Input:  inputInstance,
+				Output: outputInstance,
+			}
+		}
+	}
+	return methods, nil
+}
+
+func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
 
 	return router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		pathTemplate, err := route.GetPathTemplate()
@@ -640,7 +707,29 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 			return nil
 		}
 
-		g.RegisterEndpoint(pathTemplate, strings.Join(methods, ""), CreateUserRequest{}, User{})
+		rest := UserSvc{}
+		data, err := GetInterfaceMethods(rest)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return nil
+		}
+
+		for methodName, structs := range data {
+			fmt.Printf("→ Method: %s\n", methodName)
+			fmt.Printf(" Input Struct: %+v\n", structs.Input)
+			fmt.Printf(" Output Struct: %+v\n", structs.Output)
+
+			// Extract and store handler function names
+			handler := route.GetHandler()
+			handlerName := g.getHandlerFunctionName(handler)
+
+			fmt.Printf("→ Service name: %+v\n", handlerName)
+
+			if strings.Contains(handlerName, methodName) {
+				g.RegisterEndpoint(pathTemplate, strings.Join(methods, ""), structs.Input, structs.Output)
+
+			}
+		}
 
 		if g.routes[pathTemplate] == nil {
 			g.routes[pathTemplate] = make(map[string]interface{})
@@ -661,4 +750,20 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 
 		return nil
 	})
+}
+
+// Helper to extract only the function name from the handler
+func (g *Generator) getHandlerFunctionName(handler http.Handler) string {
+	if handlerFunc, ok := handler.(http.HandlerFunc); ok {
+		fullName := runtime.FuncForPC(reflect.ValueOf(handlerFunc).Pointer()).Name()
+		return fullName
+		// parts := strings.Split(fullName, ".")
+		// // Get last part of the name, then split on "func" in case of closures
+		// lastPart := parts[len(parts)-1]
+		// if idx := strings.Index(lastPart, ".func"); idx != -1 {
+		// 	lastPart = lastPart[:idx] // Remove the ".funcX" suffix
+		// }
+		// return lastPart // Return only the function name
+	}
+	return "unknownHandler"
 }

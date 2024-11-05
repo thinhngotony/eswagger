@@ -9,7 +9,7 @@
   "paths": {
     "/users": {
       "post": {
-        "description": "Create a new main.createuser",
+        "description": "Create a new main.main.createuser.func2",
         "consumes": [
           "application/json"
         ],
@@ -19,7 +19,7 @@
         "tags": [
           "users"
         ],
-        "summary": "C R E A T E U S E R",
+        "summary": "F U N C 2",
         "parameters": [
           {
             "name": "body",
@@ -50,7 +50,7 @@
     },
     "/users/{id}": {
       "put": {
-        "description": "Update existing main.updateuser",
+        "description": "Update existing main.main.updateuser.func4",
         "consumes": [
           "application/json"
         ],
@@ -60,16 +60,8 @@
         "tags": [
           "users"
         ],
-        "summary": "U P D A T E U S E R",
+        "summary": "F U N C 4",
         "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/CreateUserRequest"
-            }
-          },
           {
             "type": "integer",
             "format": "int64",
@@ -81,18 +73,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/User"
-            },
-            "examples": {
-              "application/json": {
-                "id": 0,
-                "username": "",
-                "email": "",
-                "created_at": "0001-01-01T00:00:00Z"
-              }
-            }
+            "description": "OK"
           }
         }
       }
