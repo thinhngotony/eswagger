@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/go-openapi/spec"
 	"github.com/gorilla/mux"
@@ -84,34 +86,8 @@ func (g *Generator) GetSwaggerSpec() *spec.Swagger {
 	return g.swagger
 }
 
-func (g *Generator) generateSummary(handlerName, method string) string {
-	parts := strings.Split(handlerName, ".")
-	if len(parts) > 0 {
-		funcName := parts[len(parts)-1]
-		return strings.ToTitle(strings.Join(strings.Split(funcName, ""), " "))
-	}
-	return fmt.Sprintf("%s operation", method)
-}
-
-func (g *Generator) generateDescription(handlerName, method string) string {
-	resource := g.extractResourceName(handlerName)
-	switch method {
-	case "GET":
-		return fmt.Sprintf("Retrieve %s information", resource)
-	case "POST":
-		return fmt.Sprintf("Create a new %s", resource)
-	case "PUT":
-		return fmt.Sprintf("Update existing %s", resource)
-	case "DELETE":
-		return fmt.Sprintf("Delete %s", resource)
-	default:
-		return fmt.Sprintf("%s operation for %s", method, resource)
-	}
-}
-
 func (g *Generator) extractResourceName(path string) string {
 
-	log.Println(">>>>>>>>>>>>>>>>>:", path)
 	parts := strings.Split(path, "/")
 	for _, part := range parts {
 		if part != "" && !strings.Contains(part, "{") {
@@ -504,15 +480,10 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 		}
 
 		for methodName, structs := range data {
-			fmt.Printf("→ Method: %s\n", methodName)
-			fmt.Printf(" Input Struct: %+v\n", structs.Input)
-			fmt.Printf(" Output Struct: %+v\n", structs.Output)
 
 			// Extract and store handler function names
 			handler := route.GetHandler()
 			handlerName := g.getHandlerFunctionName(handler)
-
-			fmt.Printf("→ Service name: %+v\n", handlerName)
 
 			if strings.Contains(handlerName, methodName) {
 				g.RegisterEndpoint(pathTemplate, strings.Join(methods, ""), structs.Input, structs.Output)
@@ -541,18 +512,156 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 	})
 }
 
-// Helper to extract only the function name from the handler
+func (g *Generator) cleanHandlerName(handlerName string) string {
+	// Split the handler name by "."
+
+	parts := strings.Split(handlerName, ".")
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// Get the second to last part which contains the function name
+	var name string
+	if len(parts) > 1 {
+		name = parts[len(parts)-2] // This will now capture "DeleteUser" from "main.main.DeleteUser.func3"
+	} else {
+		name = parts[len(parts)-1]
+	}
+
+	// Remove ".func1", ".func2", etc. suffixes from closures if they are in the last part
+	if lastPart := parts[len(parts)-1]; strings.HasPrefix(lastPart, "func") {
+		// If the last part starts with "func", we ignore it
+		// name will remain as is since we took it from the second to last part
+	}
+
+	// Convert to title case and split camelCase
+	return g.splitCamelCase(name)
+}
+
+// Add this helper to split camelCase properly
+func (g *Generator) splitCamelCase(s string) string {
+	// Handle common prefixes
+	s = strings.TrimPrefix(s, "get")
+	s = strings.TrimPrefix(s, "post")
+	s = strings.TrimPrefix(s, "put")
+	s = strings.TrimPrefix(s, "delete")
+	s = strings.TrimPrefix(s, "patch")
+
+	var words []string
+	word := ""
+
+	for i, r := range s {
+		if i > 0 && (unicode.IsUpper(r) || unicode.IsNumber(r)) {
+			if len(word) > 0 {
+				words = append(words, word)
+			}
+			word = string(r)
+		} else {
+			word += string(r)
+		}
+	}
+
+	if len(word) > 0 {
+		words = append(words, word)
+	}
+
+	return strings.Join(words, " ")
+}
+
+// Replace the existing generateSummary method
+func (g *Generator) generateSummary(handlerName, method string) string {
+	cleanName := g.cleanHandlerName(handlerName)
+
+	if cleanName == "" {
+		return fmt.Sprintf("%s operation", method)
+	}
+
+	return cleanName
+	//// Create a proper summary based on the HTTP method
+	//switch method {
+	//case "GET":
+	//	return fmt.Sprintf("[GET] %s", cleanName)
+	//case "POST":
+	//	return fmt.Sprintf("[CREATE] %s", cleanName)
+	//case "PUT":
+	//	return fmt.Sprintf("[PUT] %s", cleanName)
+	//case "DELETE":
+	//	return fmt.Sprintf("[DELETE] %s", cleanName)
+	//case "PATCH":
+	//	return fmt.Sprintf("[PATCH] %s", cleanName)
+	//default:
+	//	return fmt.Sprintf("%s %s", method, cleanName)
+	//}
+}
+
+// Update the getHandlerFunctionName method
 func (g *Generator) getHandlerFunctionName(handler http.Handler) string {
 	if handlerFunc, ok := handler.(http.HandlerFunc); ok {
 		fullName := runtime.FuncForPC(reflect.ValueOf(handlerFunc).Pointer()).Name()
-		return fullName
-		// parts := strings.Split(fullName, ".")
-		// // Get last part of the name, then split on "func" in case of closures
-		// lastPart := parts[len(parts)-1]
-		// if idx := strings.Index(lastPart, ".func"); idx != -1 {
-		// 	lastPart = lastPart[:idx] // Remove the ".funcX" suffix
-		// }
-		// return lastPart // Return only the function name
+		return strings.Replace(g.cleanHandlerName(fullName), " ", "", -1)
 	}
-	return "unknownHandler"
+	return "UnknownHandler"
+}
+
+// Modify the generateDescription method to use cleanHandlerName
+func (g *Generator) generateDescription(handlerName, method string) string {
+	// Get clean name without the func2 suffix and properly formatted
+	cleanName := g.cleanHandlerName(handlerName)
+
+	// Extract the resource name - typically would be "User" from "CreateUser"
+	resource := g.getResourceFromHandler(cleanName)
+
+	return resource
+
+	//switch method {
+	//case "GET":
+	//	return fmt.Sprintf("Retrieve %s information", resource)
+	//case "POST":
+	//	return fmt.Sprintf("Create a new %s", resource)
+	//case "PUT":
+	//	return fmt.Sprintf("Update existing %s", resource)
+	//case "DELETE":
+	//	return fmt.Sprintf("Delete existing %s", resource)
+	//case "PATCH":
+	//	return fmt.Sprintf("Partially update %s", resource)
+	//default:
+	//	return fmt.Sprintf("%s operation for %s", method, resource)
+	//}
+}
+
+func ExtractFuncName(input string) string {
+	pattern := `(?:\w+\.)*(\w+)\.func\d+`
+
+	re := regexp.MustCompile(pattern)
+	matches := re.FindStringSubmatch(input)
+
+	if len(matches) > 1 {
+		// Extract the function name
+		functionName := matches[1]
+		log.Println("Extracted function name:", functionName)
+		return functionName
+	}
+	log.Println("No match found.")
+	return input
+
+}
+
+// Add this new helper method to extract the resource name from the handler name
+func (g *Generator) getResourceFromHandler(handlerName string) string {
+	// Remove common prefixes
+
+	name := strings.TrimPrefix(strings.ToLower(handlerName), "create")
+
+	name = strings.TrimPrefix(name, "update")
+	name = strings.TrimPrefix(name, "delete")
+	name = strings.TrimPrefix(name, "get")
+	name = strings.TrimPrefix(name, "post")
+	name = strings.TrimPrefix(name, "put")
+
+	// Clean up any remaining spaces and convert first character to lower case
+	name = strings.TrimSpace(handlerName)
+	if len(name) > 0 {
+		return strings.ToLower(name[:1]) + name[1:]
+	}
+	return "resource"
 }

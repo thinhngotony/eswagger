@@ -18,26 +18,24 @@ func CreateUser(s eswagger.UserSvc) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		s.CreateUser(req)
-		user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
-		json.NewEncoder(w).Encode(user)
+		data, err := s.CreateUser(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(data)
 	}
 }
 
 func DeleteUser(s eswagger.UserSvc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req eswagger.CreateUserRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 		s.DeleteUser(1)
-		user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
+		user := eswagger.User{}
 		json.NewEncoder(w).Encode(user)
 	}
 }
 
-func updateUser(s eswagger.UserSvc) http.HandlerFunc {
+func UpdateUser(s eswagger.UserSvc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req eswagger.UpdateUserRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -54,8 +52,8 @@ func main() {
 	r := mux.NewRouter()
 
 	swaggerGen := eswagger.NewGenerator(eswagger.Config{
-		Title:       "User Management API",
-		Description: "API for managing users",
+		Title:       "[CAL] FusionFlow as Provider",
+		Description: "APIs for integrating with FF provider",
 		Version:     "1.0.0",
 		BasePath:    "/api/v1",
 		DocPath:     "doc",
@@ -64,8 +62,8 @@ func main() {
 	userSvc := eswagger.UserSvc{}
 	// Register routes
 	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
-	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("GET")
-	r.HandleFunc("/users/{id}", updateUser(userSvc)).Methods("PUT")
+	r.HandleFunc("/users/{id}2", DeleteUser(userSvc)).Methods("DELETE")
+	r.HandleFunc("/users/{id}", UpdateUser(userSvc)).Methods("PUT")
 
 	// Generate swagger documentation
 	if err := swaggerGen.GenerateFromRouter(r, eswagger.RouteMetadata{}); err != nil {
@@ -88,7 +86,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Server starting on :8080")
 	fmt.Println("Swagger UI available at: http://localhost:8080/swagger/")
 
 	log.Fatal(http.ListenAndServe(":8080", r))

@@ -1,15 +1,15 @@
 {
   "swagger": "2.0",
   "info": {
-    "description": "API for managing users",
-    "title": "User Management API",
+    "description": "APIs for integrating with FF provider",
+    "title": "[CAL] FusionFlow as Provider",
     "version": "1.0.0"
   },
   "basePath": "/api/v1",
   "paths": {
     "/users": {
       "post": {
-        "description": "Create a new main.main.createuser.func2",
+        "description": "create User",
         "consumes": [
           "application/json"
         ],
@@ -19,7 +19,7 @@
         "tags": [
           "users"
         ],
-        "summary": "F U N C 2",
+        "summary": "Create User",
         "parameters": [
           {
             "name": "body",
@@ -50,7 +50,7 @@
     },
     "/users/{id}": {
       "put": {
-        "description": "Update existing main.main.updateuser.func4",
+        "description": "update User",
         "consumes": [
           "application/json"
         ],
@@ -60,8 +60,16 @@
         "tags": [
           "users"
         ],
-        "summary": "F U N C 4",
+        "summary": "Update User",
         "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateUserRequest"
+            }
+          },
           {
             "type": "integer",
             "format": "int64",
@@ -73,7 +81,48 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/User"
+            },
+            "examples": {
+              "application/json": {
+                "id": 0,
+                "username": "",
+                "email": "",
+                "created_at": "0001-01-01T00:00:00Z"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{id}2": {
+      "delete": {
+        "description": "delete User",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Delete User",
+        "parameters": [
+          {
+            "type": "integer",
+            "format": "int64",
+            "description": "ID of the resource",
+            "name": "id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -91,6 +140,17 @@
           "type": "string"
         },
         "username": {
+          "type": "string"
+        }
+      }
+    },
+    "UpdateUserRequest": {
+      "type": "object",
+      "properties": {
+        "update_email": {
+          "type": "string"
+        },
+        "update_username": {
           "type": "string"
         }
       }
