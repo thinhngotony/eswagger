@@ -3,6 +3,7 @@ package eswagger
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"unicode"
 
 	"github.com/go-openapi/spec"
-	"github.com/gorilla/mux"
 )
 
 type Config struct {
@@ -47,18 +47,27 @@ func (g *Generator) convertMuxPathToSwagger(muxPath string) string {
 func (g *Generator) addOperationToPathItem(pathItem *spec.PathItem, method string, operation *spec.Operation) {
 	switch strings.ToUpper(method) {
 	case "GET":
-		pathItem.Get = operation
+		if pathItem.Get == nil {
+			pathItem.Get = operation
+		}
 	case "POST":
-		pathItem.Post = operation
+		if pathItem.Post == nil {
+			pathItem.Post = operation
+		}
 	case "PUT":
-		pathItem.Put = operation
+		if pathItem.Put == nil {
+			pathItem.Put = operation
+		}
 	case "DELETE":
-		pathItem.Delete = operation
+		if pathItem.Delete == nil {
+			pathItem.Delete = operation
+		}
 	case "PATCH":
-		pathItem.Patch = operation
+		if pathItem.Patch == nil {
+			pathItem.Patch = operation
+		}
 	}
 }
-
 func (g *Generator) SaveSwagger(format string) error {
 	var data []byte
 	var err error
@@ -290,12 +299,10 @@ func (g *Generator) RegisterEndpoint(path, method string, requestType, responseT
 	mapping := TypeMapping{}
 	if requestType != nil {
 		mapping.RequestType = reflect.TypeOf(requestType)
-		// Pre-register the type in definitions
 		g.registerType(requestType)
 	}
 	if responseType != nil {
 		mapping.ResponseType = reflect.TypeOf(responseType)
-		// Pre-register the type in definitions
 		g.registerType(responseType)
 	}
 
@@ -457,10 +464,10 @@ func GetInterfaceMethods(i interface{}) (map[string]MethodStructs, error) {
 	}
 	return methods, nil
 }
-
 func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
+	pathItems := make(map[string]spec.PathItem)
 
-	return router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	err := router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		pathTemplate, err := route.GetPathTemplate()
 		if err != nil {
 			return nil
@@ -468,48 +475,54 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 
 		methods, err := route.GetMethods()
 		if err != nil {
-			log.Panic(err)
+			log.Printf("Warning: couldn't get methods for route %s: %v", pathTemplate, err)
 			return nil
+		}
+
+		// Get existing PathItem or create new one
+		pathItem, exists := pathItems[pathTemplate]
+		if !exists {
+			pathItem = spec.PathItem{}
 		}
 
 		rest := UserSvc{}
-		data, err := GetInterfaceMethods(rest)
+		methodStructs, err := GetInterfaceMethods(rest)
 		if err != nil {
-			fmt.Println("Error:", err)
+			log.Printf("Warning: couldn't get interface methods: %v", err)
 			return nil
 		}
 
-		for methodName, structs := range data {
+		handler := route.GetHandler()
+		handlerName := g.getHandlerFunctionName(handler)
 
-			// Extract and store handler function names
-			handler := route.GetHandler()
-			handlerName := g.getHandlerFunctionName(handler)
-
+		// Match handler with method structs and register endpoints
+		for methodName, structs := range methodStructs {
 			if strings.Contains(handlerName, methodName) {
-				g.RegisterEndpoint(pathTemplate, strings.Join(methods, ""), structs.Input, structs.Output)
-
+				for _, method := range methods {
+					g.RegisterEndpoint(pathTemplate, method, structs.Input, structs.Output)
+				}
 			}
 		}
 
-		if g.routes[pathTemplate] == nil {
-			g.routes[pathTemplate] = make(map[string]interface{})
-		}
-
-		handler := route.GetHandler()
-
-		pathItem := spec.PathItem{}
-
+		// Generate operations for each HTTP method
 		for _, method := range methods {
-			g.routes[pathTemplate][method] = handler
 			operation := g.generateOperationFromHandler(handler, method, pathTemplate)
 			g.addOperationToPathItem(&pathItem, method, operation)
 		}
 
+		// Store updated PathItem
+		pathItems[pathTemplate] = pathItem
 		swaggerPath := g.convertMuxPathToSwagger(pathTemplate)
 		g.swagger.Paths.Paths[swaggerPath] = pathItem
 
 		return nil
 	})
+
+	if err != nil {
+		return fmt.Errorf("error walking routes: %v", err)
+	}
+
+	return nil
 }
 
 func (g *Generator) cleanHandlerName(handlerName string) string {

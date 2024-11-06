@@ -95,9 +95,7 @@
             }
           }
         }
-      }
-    },
-    "/users/{id}2": {
+      },
       "delete": {
         "description": "delete User",
         "consumes": [

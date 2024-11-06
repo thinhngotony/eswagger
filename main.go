@@ -62,7 +62,7 @@ func main() {
 	userSvc := eswagger.UserSvc{}
 	// Register routes
 	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
-	r.HandleFunc("/users/{id}2", DeleteUser(userSvc)).Methods("DELETE")
+	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("DELETE")
 	r.HandleFunc("/users/{id}", UpdateUser(userSvc)).Methods("PUT")
 
 	// Generate swagger documentation
