@@ -52,8 +52,8 @@ func main() {
 	r := mux.NewRouter()
 
 	swaggerGen := eswagger.NewGenerator(eswagger.Config{
-		Title:       "[CAL] FusionFlow as Provider",
-		Description: "APIs for integrating with FF provider",
+		Title:       "[REST] User Login API",
+		Description: "This is a simple user login API",
 		Version:     "1.0.0",
 		BasePath:    "/api/v1",
 		DocPath:     "doc",

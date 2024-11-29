@@ -1,8 +1,8 @@
 {
   "swagger": "2.0",
   "info": {
-    "description": "APIs for integrating with FF provider",
-    "title": "[CAL] FusionFlow as Provider",
+    "description": "This is a simple user login API",
+    "title": "[REST] User Login API",
     "version": "1.0.0"
   },
   "basePath": "/api/v1",

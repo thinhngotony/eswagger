@@ -164,33 +164,6 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 	return operation
 }
 
-func (g *Generator) generateSchemaOld(t reflect.Type) *spec.Schema {
-	schema := &spec.Schema{
-		SchemaProps: spec.SchemaProps{
-			Type:       []string{"object"},
-			Properties: make(map[string]spec.Schema),
-		},
-	}
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		jsonTag := strings.Split(field.Tag.Get("json"), ",")[0]
-		if jsonTag == "" || jsonTag == "-" {
-			continue
-		}
-
-		fieldSchema := g.getFieldSchema(field.Type)
-		if fieldSchema != nil {
-			schema.Properties[jsonTag] = *fieldSchema
-			if !g.isRequiredField(field) {
-				schema.Required = append(schema.Required, jsonTag)
-			}
-		}
-	}
-
-	return schema
-}
-
 func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 
 	// Safely handle nil and pointer types
@@ -225,8 +198,6 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 			fieldType = fieldType.Elem()
 		}
 
-		// Retrieve the "doc" tag value and set it as the description
-
 		fieldSchema := g.getFieldSchema(fieldType)
 		if fieldSchema != nil {
 			// If the field is a pointer, mark it as nullable
@@ -234,9 +205,8 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 				fieldSchema.Nullable = true
 			}
 
-			// Add doc
-			fieldSchema.Description = field.Tag.Get("doc")
-			fieldSchema.Example = field.Tag.Get("example")
+			fieldSchema.Description = field.Tag.Get("doc") // Retrieve the "doc" tag value and set it as the Description
+			fieldSchema.Example = field.Tag.Get("example") // Retrieve the "example" tag value and set it as the Example
 
 			schema.Properties[jsonTag] = *fieldSchema
 
@@ -421,7 +391,7 @@ func (g *ExampleGenerator) getExampleFromTag(field reflect.StructField) interfac
 		return nil
 	}
 
-	tags, err := structtag.Parse(string(docTag))
+	tags, err := structtag.Parse(docTag)
 	if err != nil {
 		return nil
 	}
@@ -479,7 +449,7 @@ func (g *Generator) extractFieldMetadata(field reflect.StructField) FieldMetadat
 		return FieldMetadata{}
 	}
 
-	tags, err := structtag.Parse(string(docTag))
+	tags, err := structtag.Parse(docTag)
 	if err != nil {
 		return FieldMetadata{}
 	}
@@ -730,8 +700,8 @@ func (g *Generator) generateExample(t reflect.Type) interface{} {
 
 // RegisterModels registers all model types that should appear in swagger definitions
 func (g *Generator) RegisterModels(models ...interface{}) {
-	for _, model := range models {
-		typ := reflect.TypeOf(model)
+	for _, m := range models {
+		typ := reflect.TypeOf(m)
 		if typ.Kind() == reflect.Ptr {
 			typ = typ.Elem()
 		}
@@ -757,40 +727,6 @@ func (m UserSvc) UpdateUser(input model.UpdateUserRequest) (model.UserResponse, 
 
 func (m UserSvc) DeleteUser(id int) error {
 	return nil
-}
-
-func GetInterfaceMethods(i interface{}) (map[string]*MethodStructs, error) {
-	methods := make(map[string]*MethodStructs)
-	val := reflect.ValueOf(i)
-	typ := reflect.TypeOf(i)
-
-	for j := 0; j < val.NumMethod(); j++ {
-		method := val.Method(j)
-		methodType := method.Type()
-		methodName := typ.Method(j).Name
-
-		// Check for methods with an input and output
-		if methodType.NumIn() == 1 && methodType.NumOut() >= 1 {
-			inputType := methodType.In(0)
-			outputType := methodType.Out(0)
-
-			// Instantiate the input and output structs if they are structs
-			var inputInstance, outputInstance interface{}
-			if inputType.Kind() == reflect.Struct {
-				inputInstance = reflect.New(inputType).Elem().Interface()
-			}
-			if outputType.Kind() == reflect.Struct {
-				outputInstance = reflect.New(outputType).Elem().Interface()
-			}
-
-			// Store the instances in the map as a pointer
-			methods[methodName] = &MethodStructs{
-				Input:  inputInstance,
-				Output: outputInstance,
-			}
-		}
-	}
-	return methods, nil
 }
 
 func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]*MethodStructs, error) {
@@ -851,7 +787,7 @@ func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]*MethodStru
 	return methods, nil
 }
 
-// Helper function to get interface type from an interface definition
+// GetInterfaceMethodsFromType Helper function to get interface type from an interface definition
 func GetInterfaceMethodsFromType(i interface{}) (map[string]*MethodStructs, error) {
 	t := reflect.TypeOf(i)
 	if t == nil {
@@ -1001,21 +937,7 @@ func (g *Generator) generateSummary(handlerName, method string) string {
 	}
 
 	return cleanName
-	//// Create a proper summary based on the HTTP method
-	//switch method {
-	//case "GET":
-	//	return fmt.Sprintf("[GET] %s", cleanName)
-	//case "POST":
-	//	return fmt.Sprintf("[CREATE] %s", cleanName)
-	//case "PUT":
-	//	return fmt.Sprintf("[PUT] %s", cleanName)
-	//case "DELETE":
-	//	return fmt.Sprintf("[DELETE] %s", cleanName)
-	//case "PATCH":
-	//	return fmt.Sprintf("[PATCH] %s", cleanName)
-	//default:
-	//	return fmt.Sprintf("%s %s", method, cleanName)
-	//}
+
 }
 
 // Update the getHandlerFunctionName method
@@ -1037,20 +959,6 @@ func (g *Generator) generateDescription(handlerName, method string) string {
 
 	return resource
 
-	//switch method {
-	//case "GET":
-	//	return fmt.Sprintf("Retrieve %s information", resource)
-	//case "POST":
-	//	return fmt.Sprintf("Create a new %s", resource)
-	//case "PUT":
-	//	return fmt.Sprintf("Update existing %s", resource)
-	//case "DELETE":
-	//	return fmt.Sprintf("Delete existing %s", resource)
-	//case "PATCH":
-	//	return fmt.Sprintf("Partially update %s", resource)
-	//default:
-	//	return fmt.Sprintf("%s operation for %s", method, resource)
-	//}
 }
 
 func ExtractFuncName(input string) string {
