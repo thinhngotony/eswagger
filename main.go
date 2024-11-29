@@ -13,7 +13,7 @@ import (
 
 func CreateUser(s eswagger.TonyTest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req model.Tony
+		var req model.RequestStruct
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -37,7 +37,7 @@ func DeleteUser(s eswagger.TonyTest) http.HandlerFunc {
 
 func UpdateUser(s eswagger.TonyTest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req eswagger.UpdateUserRequest
+		var req model.UpdateUserRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

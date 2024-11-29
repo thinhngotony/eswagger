@@ -26,7 +26,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/Tony"
+              "$ref": "#/definitions/RequestStruct"
             }
           }
         ],
@@ -49,53 +49,6 @@
       }
     },
     "/users/{id}": {
-      "put": {
-        "description": "update User",
-        "consumes": [
-          "application/json"
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "tags": [
-          "users"
-        ],
-        "summary": "Update User",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/UpdateUserRequest"
-            }
-          },
-          {
-            "type": "integer",
-            "format": "int64",
-            "description": "ID of the resource",
-            "name": "id",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/User"
-            },
-            "examples": {
-              "application/json": {
-                "id": 0,
-                "username": "",
-                "email": "",
-                "created_at": "0001-01-01T00:00:00Z"
-              }
-            }
-          }
-        }
-      },
       "delete": {
         "description": "delete User",
         "consumes": [
@@ -124,33 +77,75 @@
           }
         }
       }
+    },
+    "/users/{uuid}": {
+      "put": {
+        "description": "update User",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Update User",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateUserRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/User"
+            },
+            "examples": {
+              "application/json": {
+                "id": 0,
+                "username": "",
+                "email": "",
+                "created_at": "0001-01-01T00:00:00Z"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
-    "Tony": {
+    "RequestStruct": {
       "type": "object",
       "required": [
-        "id",
-        "username",
-        "email",
-        "first_name",
-        "last_name"
+        "id"
       ],
       "properties": {
         "email": {
+          "description": "User's email address",
           "type": "string"
         },
         "first_name": {
+          "description": "First name of the user",
           "type": "string"
         },
         "id": {
+          "description": "Unique identifier for the user",
           "type": "integer",
           "format": "int64"
         },
         "last_name": {
+          "description": "Last name of the user",
           "type": "string"
         },
         "username": {
+          "description": "Username for login",
           "type": "string"
         }
       }
@@ -159,29 +154,29 @@
       "type": "object",
       "properties": {
         "update_email": {
+          "description": "Update the email of the user",
           "type": "string"
         },
         "update_username": {
+          "description": "Update the username of the user",
           "type": "string"
         }
       }
     },
     "User": {
       "type": "object",
-      "required": [
-        "id",
-        "username",
-        "email"
-      ],
       "properties": {
         "email": {
+          "description": "description=User's email address;example=john@example.com;required=true",
           "type": "string"
         },
         "id": {
+          "description": "description=Unique identifier for the user;example=1;required=true",
           "type": "integer",
           "format": "int64"
         },
         "username": {
+          "description": "description=Username for login;example=john_doe;required=true;format=email",
           "type": "string"
         }
       }

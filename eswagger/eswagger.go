@@ -111,24 +111,6 @@ func (g *Generator) extractResourceName(path string) string {
 	return "resource"
 }
 
-//type User struct {
-//	ID        int       `json:"id"`
-//	Username  string    `json:"username"`
-//	Email     string    `json:"email"`
-//	CreatedAt time.Time `json:"created_at"`
-//}
-
-//type CreateUserRequest struct {
-//	Username string `json:"username" doc:"description=The desired username for the account;example=john_doe;required=true;format=username"`
-//	Email    string `json:"email" doc:"description=The user's email address;example=john@example.com;required=true;format=email"`
-//	Role     string `json:"role" doc:"description=User role in the system;example=user;enum=user,admin,guest"`
-//}
-
-type UpdateUserRequest struct {
-	Username string `json:"update_username,omitempty"`
-	Email    string `json:"update_email,omitempty"`
-}
-
 func (g *Generator) generateOperationFromHandler(handler interface{}, method string, path string) *spec.Operation {
 	handlerValue := reflect.ValueOf(handler)
 	handlerName := runtime.FuncForPC(handlerValue.Pointer()).Name()
@@ -200,7 +182,7 @@ func (g *Generator) generateSchemaOld(t reflect.Type) *spec.Schema {
 		fieldSchema := g.getFieldSchema(field.Type)
 		if fieldSchema != nil {
 			schema.Properties[jsonTag] = *fieldSchema
-			if !g.isOptionalField(field) {
+			if !g.isRequiredField(field) {
 				schema.Required = append(schema.Required, jsonTag)
 			}
 		}
@@ -243,6 +225,8 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 			fieldType = fieldType.Elem()
 		}
 
+		// Retrieve the "doc" tag value and set it as the description
+
 		fieldSchema := g.getFieldSchema(fieldType)
 		if fieldSchema != nil {
 			// If the field is a pointer, mark it as nullable
@@ -250,10 +234,13 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 				fieldSchema.Nullable = true
 			}
 
+			// Add doc
+			fieldSchema.Description = field.Tag.Get("doc")
+
 			schema.Properties[jsonTag] = *fieldSchema
 
 			// Only add to required if it's not a pointer field
-			if !isPointer && !g.isOptionalField(field) {
+			if !isPointer && g.isRequiredField(field) {
 				schema.Required = append(schema.Required, jsonTag)
 			}
 		}
@@ -262,9 +249,9 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 	return schema
 }
 
-func (g *Generator) isOptionalField(field reflect.StructField) bool {
-	jsonTag := field.Tag.Get("json")
-	return strings.Contains(jsonTag, "omitempty")
+func (g *Generator) isRequiredField(field reflect.StructField) bool {
+	jsonTag := field.Tag.Get("validate")
+	return strings.Contains(jsonTag, "required")
 }
 
 func (g *Generator) getFieldSchema(t reflect.Type) *spec.Schema {
@@ -776,7 +763,7 @@ func (m UserSvc) CreateUser(input CreateUserRequest) (User, error) {
 	return User{ID: 1, Username: input.Username, Email: input.Email}, nil
 }
 
-func (m UserSvc) UpdateUser(input UpdateUserRequest) (User, error) {
+func (m UserSvc) UpdateUser(input model.UpdateUserRequest) (User, error) {
 	return User{ID: 1, Username: input.Username, Email: input.Email}, nil
 }
 
@@ -895,8 +882,8 @@ func GetInterfaceMethodsFromType(i interface{}) (map[string]*MethodStructs, erro
 }
 
 type TonyTest interface {
-	CreateUser(input *model.Tony) (User, error)
-	UpdateUser(input UpdateUserRequest) (User, error)
+	CreateUser(input *model.RequestStruct) (User, error)
+	UpdateUser(input model.UpdateUserRequest) (User, error)
 	DeleteUser(id int) error
 }
 
