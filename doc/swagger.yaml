@@ -26,7 +26,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CreateUserRequest"
+              "$ref": "#/definitions/Tony"
             }
           }
         ],
@@ -127,14 +127,27 @@
     }
   },
   "definitions": {
-    "CreateUserRequest": {
+    "Tony": {
       "type": "object",
       "required": [
+        "id",
         "username",
-        "email"
+        "email",
+        "first_name",
+        "last_name"
       ],
       "properties": {
         "email": {
+          "type": "string"
+        },
+        "first_name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "last_name": {
           "type": "string"
         },
         "username": {

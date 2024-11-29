@@ -3,17 +3,22 @@ package eswagger
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"os"
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/gorilla/mux"
+
+	"main/pkg/model"
+
+	"github.com/fatih/structtag"
 	"github.com/go-openapi/spec"
 )
 
@@ -106,17 +111,18 @@ func (g *Generator) extractResourceName(path string) string {
 	return "resource"
 }
 
-type User struct {
-	ID        int       `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-}
+//type User struct {
+//	ID        int       `json:"id"`
+//	Username  string    `json:"username"`
+//	Email     string    `json:"email"`
+//	CreatedAt time.Time `json:"created_at"`
+//}
 
-type CreateUserRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-}
+//type CreateUserRequest struct {
+//	Username string `json:"username" doc:"description=The desired username for the account;example=john_doe;required=true;format=username"`
+//	Email    string `json:"email" doc:"description=The user's email address;example=john@example.com;required=true;format=email"`
+//	Role     string `json:"role" doc:"description=User role in the system;example=user;enum=user,admin,guest"`
+//}
 
 type UpdateUserRequest struct {
 	Username string `json:"update_username,omitempty"`
@@ -259,10 +265,276 @@ type TypeMapping struct {
 }
 
 type Generator struct {
-	swagger      *spec.Swagger
-	config       Config
-	routes       map[string]map[string]interface{}
-	typeMappings map[string]map[string]TypeMapping // path -> method -> types
+	swagger          *spec.Swagger
+	config           Config
+	routes           map[string]map[string]interface{}
+	typeMappings     map[string]map[string]TypeMapping // path -> method -> types
+	exampleGenerator *ExampleGenerator
+}
+
+// DocTag represents the structure for documentation tags
+type DocTag struct {
+	Description string   `json:"description"`
+	Example     string   `json:"example"`
+	Required    bool     `json:"required"`
+	Format      string   `json:"format"`
+	Enum        []string `json:"enum,omitempty"`
+}
+
+// FieldMetadata stores field documentation
+type FieldMetadata struct {
+	Description string
+	Example     interface{}
+	Required    bool
+	Format      string
+	Enum        []string
+}
+
+// Enhanced struct tags for better documentation
+type User struct {
+	ID        int       `json:"id" doc:"description=Unique identifier for the user;example=1;required=true"`
+	Username  string    `json:"username" doc:"description=Username for login;example=john_doe;required=true;format=email"`
+	Email     string    `json:"email" doc:"description=User's email address;example=john@example.com;required=true"`
+	CreatedAt time.Time `json:"created_at" doc:"description=Timestamp of user creation;example=2024-01-01T00:00:00Z"`
+}
+
+type CreateUserRequest struct {
+	Username string `json:"username" doc:"description=Desired username for new account;example=john_doe;required=true"`
+	Email    string `json:"email" doc:"description=Email address for notifications;example=john@example.com;required=true;format=email"`
+}
+
+// ExampleGenerator handles example generation for different types
+type ExampleGenerator struct {
+	customExamples map[reflect.Type]interface{}
+}
+
+func NewExampleGenerator() *ExampleGenerator {
+	return &ExampleGenerator{
+		customExamples: make(map[reflect.Type]interface{}),
+	}
+}
+
+// RegisterCustomExample allows registering custom examples for specific types
+func (g *ExampleGenerator) RegisterCustomExample(t reflect.Type, example interface{}) {
+	g.customExamples[t] = example
+}
+
+// GenerateExample creates an example value for a given type
+func (g *ExampleGenerator) GenerateExample(t reflect.Type) interface{} {
+	// Check for custom examples first
+	if example, exists := g.customExamples[t]; exists {
+		return example
+	}
+
+	switch t.Kind() {
+	case reflect.String:
+		return "example_string"
+	case reflect.Int, reflect.Int64:
+		return 42
+	case reflect.Float64:
+		return 42.42
+	case reflect.Bool:
+		return true
+	case reflect.Struct:
+		return g.generateStructExample(t)
+	case reflect.Slice:
+		return g.generateSliceExample(t)
+	case reflect.Map:
+		return g.generateMapExample(t)
+	case reflect.Ptr:
+		return g.GenerateExample(t.Elem())
+	default:
+		return nil
+	}
+}
+
+func (g *ExampleGenerator) generateStructExample(t reflect.Type) interface{} {
+	v := reflect.New(t).Elem()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if example := g.getExampleFromTag(field); example != nil {
+			v.Field(i).Set(reflect.ValueOf(example))
+		} else {
+			fieldExample := g.GenerateExample(field.Type)
+			if fieldExample != nil {
+				v.Field(i).Set(reflect.ValueOf(fieldExample))
+			}
+		}
+	}
+	return v.Interface()
+}
+
+func (g *ExampleGenerator) generateSliceExample(t reflect.Type) interface{} {
+	elemExample := g.GenerateExample(t.Elem())
+	if elemExample == nil {
+		return nil
+	}
+
+	slice := reflect.MakeSlice(t, 1, 1)
+	slice.Index(0).Set(reflect.ValueOf(elemExample))
+	return slice.Interface()
+}
+
+func (g *ExampleGenerator) generateMapExample(t reflect.Type) interface{} {
+	m := reflect.MakeMap(t)
+	keyExample := g.GenerateExample(t.Key())
+	valueExample := g.GenerateExample(t.Elem())
+
+	if keyExample != nil && valueExample != nil {
+		m.SetMapIndex(reflect.ValueOf(keyExample), reflect.ValueOf(valueExample))
+	}
+
+	return m.Interface()
+}
+
+func (g *ExampleGenerator) getExampleFromTag(field reflect.StructField) interface{} {
+	docTag := field.Tag.Get("doc")
+	if docTag == "" {
+		return nil
+	}
+
+	tags, err := structtag.Parse(string(docTag))
+	if err != nil {
+		return nil
+	}
+
+	example, err := tags.Get("example")
+	if err != nil {
+		return nil
+	}
+	log.Println(example)
+	return nil
+	// return convertExample(example.Value, field.Type)
+}
+
+// Enhanced schema generation with documentation
+func (g *Generator) generateSchemaWithDocs(t reflect.Type) *spec.Schema {
+	schema := &spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Type:       []string{"object"},
+			Properties: make(map[string]spec.Schema),
+		},
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		jsonTag := strings.Split(field.Tag.Get("json"), ",")[0]
+		if jsonTag == "" || jsonTag == "-" {
+			continue
+		}
+
+		metadata := g.extractFieldMetadata(field)
+		fieldSchema := g.getFieldSchemaWithDocs(field.Type, metadata)
+
+		if fieldSchema != nil {
+			schema.Properties[jsonTag] = *fieldSchema
+			if metadata.Required {
+				schema.Required = append(schema.Required, jsonTag)
+			}
+		}
+	}
+
+	// Add examples if available
+	if example := g.exampleGenerator.GenerateExample(t); example != nil {
+		exampleBytes, err := json.Marshal(example)
+		if err == nil {
+			schema.Example = json.RawMessage(exampleBytes)
+		}
+	}
+
+	return schema
+}
+
+func (g *Generator) extractFieldMetadata(field reflect.StructField) FieldMetadata {
+	docTag := field.Tag.Get("doc")
+	if docTag == "" {
+		return FieldMetadata{}
+	}
+
+	tags, err := structtag.Parse(string(docTag))
+	if err != nil {
+		return FieldMetadata{}
+	}
+
+	metadata := FieldMetadata{}
+
+	if desc, err := tags.Get("description"); err == nil {
+		metadata.Description = desc.Name // Change from desc.Value to desc.Name
+	}
+
+	if example, err := tags.Get("example"); err == nil {
+		metadata.Example = convertExample(example.Name, field.Type) // Change from example.Value to example.Name
+	}
+
+	if required, err := tags.Get("required"); err == nil {
+		metadata.Required = required.Name == "true" // Change from required.Value to required.Name
+	}
+
+	if format, err := tags.Get("format"); err == nil {
+		metadata.Format = format.Name // Change from format.Value to format.Name
+	}
+
+	if enum, err := tags.Get("enum"); err == nil {
+		metadata.Enum = strings.Split(enum.Name, ",") // Change from enum.Value to enum.Name
+	}
+
+	return metadata
+}
+
+func (g *Generator) getFieldSchemaWithDocs(t reflect.Type, metadata FieldMetadata) *spec.Schema {
+	schema := g.getFieldSchema(t)
+	if schema == nil {
+		return nil
+	}
+
+	// Add documentation
+	if metadata.Description != "" {
+		schema.Description = metadata.Description
+	}
+
+	if metadata.Example != nil {
+		exampleBytes, err := json.Marshal(metadata.Example)
+		if err == nil {
+			schema.Example = json.RawMessage(exampleBytes)
+		}
+	}
+
+	if metadata.Format != "" {
+		schema.Format = metadata.Format
+	}
+
+	if len(metadata.Enum) > 0 {
+		for _, enum := range metadata.Enum {
+			schema.Enum = append(schema.Enum, enum)
+		}
+	}
+
+	return schema
+}
+
+func convertExample(value string, t reflect.Type) interface{} {
+	switch t.Kind() {
+	case reflect.String:
+		return value
+	case reflect.Int, reflect.Int64:
+		i, _ := strconv.ParseInt(value, 10, 64)
+		return i
+	case reflect.Float64:
+		f, _ := strconv.ParseFloat(value, 64)
+		return f
+	case reflect.Bool:
+		b, _ := strconv.ParseBool(value)
+		return b
+	case reflect.Struct:
+		// Handle time.Time specially
+		if t == reflect.TypeOf(time.Time{}) {
+			t, _ := time.Parse(time.RFC3339, value)
+			return t
+		}
+		return value
+	default:
+		return value
+	}
 }
 
 func NewGenerator(config Config) *Generator {
@@ -284,9 +556,10 @@ func NewGenerator(config Config) *Generator {
 				Definitions: make(map[string]spec.Schema),
 			},
 		},
-		config:       config,
-		routes:       make(map[string]map[string]interface{}),
-		typeMappings: make(map[string]map[string]TypeMapping),
+		config:           config,
+		routes:           make(map[string]map[string]interface{}),
+		typeMappings:     make(map[string]map[string]TypeMapping),
+		exampleGenerator: NewExampleGenerator(),
 	}
 }
 
@@ -464,6 +737,78 @@ func GetInterfaceMethods(i interface{}) (map[string]MethodStructs, error) {
 	}
 	return methods, nil
 }
+
+func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]MethodStructs, error) {
+	methods := make(map[string]MethodStructs)
+
+	// Check if input is nil
+	if interfaceType == nil {
+		return nil, fmt.Errorf("input type is nil")
+	}
+
+	// Ensure we're working with an interface type
+	if interfaceType.Kind() != reflect.Interface {
+		return nil, fmt.Errorf("input type is not an interface (got %v)", interfaceType.Kind())
+	}
+
+	// Iterate over all methods in the interface
+	for i := 0; i < interfaceType.NumMethod(); i++ {
+		method := interfaceType.Method(i)
+		methodType := method.Type
+
+		// We expect methods to have at least one input (receiver) and one output
+		if methodType.NumIn() >= 1 && methodType.NumOut() >= 1 {
+			// Get the first input type (excluding receiver)
+			inputType := methodType.In(0)
+			// Get the first output type
+			outputType := methodType.Out(0)
+
+			// Create instances for struct types
+			var inputInstance, outputInstance interface{}
+			if inputType.Kind() == reflect.Struct {
+				inputInstance = reflect.New(inputType).Elem().Interface()
+			}
+			if outputType.Kind() == reflect.Struct {
+				outputInstance = reflect.New(outputType).Elem().Interface()
+			}
+
+			methods[method.Name] = MethodStructs{
+				Input:  inputInstance,
+				Output: outputInstance,
+			}
+		}
+	}
+
+	return methods, nil
+}
+
+// Helper function to get interface type from an interface definition
+func GetInterfaceMethodsFromType(i interface{}) (map[string]MethodStructs, error) {
+	// Get the type of the interface
+	t := reflect.TypeOf(i)
+	if t == nil {
+		return nil, fmt.Errorf("input is nil")
+	}
+
+	// If it's a pointer, get the element type
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	// Ensure we're working with an interface
+	if t.Kind() != reflect.Interface {
+		return nil, fmt.Errorf("input is not an interface type")
+	}
+
+	return GetInterfaceTypeMethods(t)
+}
+
+type TonyTest interface {
+	CreateUser(input model.Tony) (User, error)
+	UpdateUser(input UpdateUserRequest) (User, error)
+	DeleteUser(id int) error
+}
+
 func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
 	pathItems := make(map[string]spec.PathItem)
 
@@ -485,8 +830,14 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 			pathItem = spec.PathItem{}
 		}
 
-		rest := UserSvc{}
-		methodStructs, err := GetInterfaceMethods(rest)
+		// rest := UserSvc{}
+		// methodStructs, err := GetInterfaceMethods(rest)
+		// if err != nil {
+		// 	log.Printf("Warning: couldn't get interface methods: %v", err)
+		// 	return nil
+		// }
+
+		methodStructs, err := GetInterfaceMethodsFromType((*TonyTest)(nil))
 		if err != nil {
 			log.Printf("Warning: couldn't get interface methods: %v", err)
 			return nil
@@ -499,6 +850,7 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 		for methodName, structs := range methodStructs {
 			if strings.Contains(handlerName, methodName) {
 				for _, method := range methods {
+					log.Printf("Registering endpoint [%v] for method [%v], input [%v], output [%v]", pathTemplate, method, structs.Input, structs.Output)
 					g.RegisterEndpoint(pathTemplate, method, structs.Input, structs.Output)
 				}
 			}

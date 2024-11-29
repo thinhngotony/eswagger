@@ -1,0 +1,33 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: <https://go.microsoft.com/fwlink/?linkid=830387>
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CAL",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "env": {
+                "CCUBE_CAL_PORT": "10000",
+                "DB_HOST": "localhost",
+                "DB_PORT": "3306",
+                "DB_TYPE": "mysql",
+                "DB_NAME": "cal_table",
+                "DB_USER": "root",
+                "DB_PASS": "MySQL123@",
+                "REDIS_HOST": "localhost",
+                "REDIS_PORT": "6379",
+                "REDIS_PASS": "Redis123@",
+                "VAULT_URL": "<http://shared-services.dev.ff.skylab.team>",
+                "VAULT_API": "v1/credentials",
+                "VAULT_API_TOKEN": "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiIwYTgyNTk1MGEzNGUyYTI4ZjBmYzA4NWFhY2JlYjgyNiIsInVzZXJfaWQiOjEsImVtYWlsIjoiZHVvbmcubmd1eWVuQGlubm9ncmFtLmNvIiwibmJmIjoxNTg0NDMyMTQxLCJleHAiOjE2MTU5NjgxNDF9.mNfuUai3HwkUKYDhD5jDFijL8DdFFHZHwVoZAFxTzuU",
+                "VAULT_API_TIMEOUT": "20",
+                "ALLOW_RGS": "c3-orchestration-dev-rg"
+            },
+            "args": [],
+        }
+    ]
+}

@@ -2,18 +2,18 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"main/eswagger"
+	"main/pkg/model"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-func CreateUser(s eswagger.UserSvc) http.HandlerFunc {
+func CreateUser(s eswagger.TonyTest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req eswagger.CreateUserRequest
+		var req model.Tony
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -27,7 +27,7 @@ func CreateUser(s eswagger.UserSvc) http.HandlerFunc {
 	}
 }
 
-func DeleteUser(s eswagger.UserSvc) http.HandlerFunc {
+func DeleteUser(s eswagger.TonyTest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.DeleteUser(1)
 		user := eswagger.User{}
@@ -35,7 +35,7 @@ func DeleteUser(s eswagger.UserSvc) http.HandlerFunc {
 	}
 }
 
-func UpdateUser(s eswagger.UserSvc) http.HandlerFunc {
+func UpdateUser(s eswagger.TonyTest) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req eswagger.UpdateUserRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -59,7 +59,7 @@ func main() {
 		DocPath:     "doc",
 	})
 
-	userSvc := eswagger.UserSvc{}
+	var userSvc eswagger.TonyTest
 	// Register routes
 	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
 	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("DELETE")
@@ -86,7 +86,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Swagger UI available at: http://localhost:8080/swagger/")
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	log.Println("Swagger UI available at: http://localhost:8080/swagger/")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
