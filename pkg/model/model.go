@@ -2,6 +2,12 @@ package model
 
 import "time"
 
+type UserInterface interface {
+	CreateUser(input *CreateUserStruct) (UserResponse, error)
+	UpdateUser(input UpdateUserRequest) (UserResponse, error)
+	DeleteUser(id int) error
+}
+
 type CreateUserStruct struct {
 	ID        int    `json:"id" validate:"required" doc:"Unique identifier for the user" example:"1"`
 	Username  string `json:"username" doc:"Username for login" example:"john_doe"`
@@ -15,12 +21,12 @@ type UpdateUserRequest struct {
 	Email    string `json:"update_email,omitempty" doc:"Update the email of the user" example:"johnny@example.com"`
 }
 
-// Enhanced struct tags for better documentation
 type UserResponse struct {
-	ID        int       `json:"id" doc:"Unique identifier for the user" example:"1"`
-	Username  string    `json:"username" doc:"Username for login" example:"john_doe"`
-	Email     string    `json:"email" doc:"User's email address" example:"john@example.com"`
-	CreatedAt time.Time `json:"created_at" doc:"Timestamp of user creation" example:"2024-01-01T00:00:00Z"`
+	ID         int       `json:"id" doc:"Unique identifier for the user" example:"1"`
+	Username   string    `json:"username" doc:"Username for login" example:"john_doe"`
+	Email      string    `json:"email" doc:"User's email address" example:"john@example.com"`
+	IsResponse bool      `json:"is_response" doc:"bool value to indicate if this is a response" example:"false"`
+	CreatedAt  time.Time `json:"created_at" doc:"Timestamp of user creation" example:"2024-01-01T00:00:00Z"`
 }
 
 type CreateUserRequest struct {

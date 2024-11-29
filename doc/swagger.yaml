@@ -35,14 +35,6 @@
             "description": "Created",
             "schema": {
               "$ref": "#/definitions/UserResponse"
-            },
-            "examples": {
-              "application/json": {
-                "id": 0,
-                "username": "",
-                "email": "",
-                "created_at": "0001-01-01T00:00:00Z"
-              }
             }
           }
         }
@@ -84,14 +76,6 @@
             "description": "OK",
             "schema": {
               "$ref": "#/definitions/UserResponse"
-            },
-            "examples": {
-              "application/json": {
-                "id": 0,
-                "username": "",
-                "email": "",
-                "created_at": "0001-01-01T00:00:00Z"
-              }
             }
           }
         }
@@ -189,6 +173,11 @@
           "type": "integer",
           "format": "int64",
           "example": "1"
+        },
+        "is_response": {
+          "description": "bool value to indicate if this is a response",
+          "type": "boolean",
+          "example": "false"
         },
         "username": {
           "description": "Username for login",

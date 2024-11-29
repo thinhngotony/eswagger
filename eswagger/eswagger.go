@@ -164,7 +164,7 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 	return operation
 }
 
-func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
+func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
 
 	// Safely handle nil and pointer types
 	if t == nil {
@@ -218,6 +218,59 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 	}
 
 	return schema
+}
+
+func (g *Generator) generateResponses(method, path string) *spec.Responses {
+	responses := &spec.Responses{
+		ResponsesProps: spec.ResponsesProps{
+			StatusCodeResponses: make(map[int]spec.Response),
+		},
+	}
+
+	var statusCode int
+	var schema *spec.Schema
+
+	switch method {
+	case "GET":
+		statusCode = http.StatusOK
+	case "POST":
+		statusCode = http.StatusCreated
+	case "PUT":
+		statusCode = http.StatusOK
+	case "DELETE":
+		statusCode = http.StatusNoContent
+	default:
+		statusCode = http.StatusOK
+	}
+
+	response := spec.Response{
+		ResponseProps: spec.ResponseProps{
+			Description: http.StatusText(statusCode),
+		},
+	}
+
+	// Get response type from registered mappings
+	if respType := g.getResponseType(path, method); respType != nil && statusCode != http.StatusNoContent {
+		schema = &spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Ref: spec.MustCreateRef("#/definitions/" + respType.Name()),
+			},
+		}
+		response.Schema = schema
+
+		// Generate example response
+		//if example := g.generateExample(respType); example != nil {
+		//	exampleBytes, err := json.Marshal(example)
+		//	if err == nil {
+		//		response.Examples = map[string]interface{}{
+		//			"application/json": json.RawMessage(exampleBytes),
+		//		}
+		//	}
+		//}
+	}
+
+	responses.StatusCodeResponses[statusCode] = response
+	return responses
 }
 
 func (g *Generator) isRequiredField(field reflect.StructField) bool {
@@ -603,7 +656,7 @@ func (g *Generator) registerType(t interface{}) {
 	if typ.Kind() == reflect.Ptr {
 		typ = typ.Elem()
 	}
-	schema := g.generateSchema(typ)
+	schema := g.generateRequest(typ)
 	g.swagger.Definitions[typ.Name()] = *schema
 }
 
@@ -630,59 +683,6 @@ func (g *Generator) getResponseType(path, method string) reflect.Type {
 	return nil
 }
 
-func (g *Generator) generateResponses(method, path string) *spec.Responses {
-	responses := &spec.Responses{
-		ResponsesProps: spec.ResponsesProps{
-			StatusCodeResponses: make(map[int]spec.Response),
-		},
-	}
-
-	var statusCode int
-	var schema *spec.Schema
-
-	switch method {
-	case "GET":
-		statusCode = http.StatusOK
-	case "POST":
-		statusCode = http.StatusCreated
-	case "PUT":
-		statusCode = http.StatusOK
-	case "DELETE":
-		statusCode = http.StatusNoContent
-	default:
-		statusCode = http.StatusOK
-	}
-
-	response := spec.Response{
-		ResponseProps: spec.ResponseProps{
-			Description: http.StatusText(statusCode),
-		},
-	}
-
-	// Get response type from registered mappings
-	if respType := g.getResponseType(path, method); respType != nil && statusCode != http.StatusNoContent {
-		schema = &spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Ref: spec.MustCreateRef("#/definitions/" + respType.Name()),
-			},
-		}
-		response.Schema = schema
-
-		// Generate example response
-		if example := g.generateExample(respType); example != nil {
-			exampleBytes, err := json.Marshal(example)
-			if err == nil {
-				response.Examples = map[string]interface{}{
-					"application/json": json.RawMessage(exampleBytes),
-				}
-			}
-		}
-	}
-
-	responses.StatusCodeResponses[statusCode] = response
-	return responses
-}
-
 // generateExample creates an example instance of the given type
 func (g *Generator) generateExample(t reflect.Type) interface{} {
 	if t.Kind() == reflect.Ptr {
@@ -705,7 +705,7 @@ func (g *Generator) RegisterModels(models ...interface{}) {
 		if typ.Kind() == reflect.Ptr {
 			typ = typ.Elem()
 		}
-		schema := g.generateSchema(typ)
+		schema := g.generateRequest(typ)
 		g.swagger.Definitions[typ.Name()] = *schema
 	}
 }
@@ -805,12 +805,6 @@ func GetInterfaceMethodsFromType(i interface{}) (map[string]*MethodStructs, erro
 	return GetInterfaceTypeMethods(t)
 }
 
-type UserInterface interface {
-	CreateUser(input *model.CreateUserStruct) (model.UserResponse, error)
-	UpdateUser(input model.UpdateUserRequest) (model.UserResponse, error)
-	DeleteUser(id int) error
-}
-
 func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
 	pathItems := make(map[string]spec.PathItem)
 
@@ -832,7 +826,7 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 			pathItem = spec.PathItem{}
 		}
 
-		methodStructs, err := GetInterfaceMethodsFromType((*UserInterface)(nil))
+		methodStructs, err := GetInterfaceMethodsFromType((*model.UserInterface)(nil))
 		if err != nil {
 			log.Printf("Warning: couldn't get interface methods: %v", err)
 			return nil

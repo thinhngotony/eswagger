@@ -11,7 +11,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-func CreateUser(s eswagger.UserInterface) http.HandlerFunc {
+func CreateUser(s model.UserInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req model.CreateUserStruct
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -27,7 +27,7 @@ func CreateUser(s eswagger.UserInterface) http.HandlerFunc {
 	}
 }
 
-func DeleteUser(s eswagger.UserInterface) http.HandlerFunc {
+func DeleteUser(s model.UserInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.DeleteUser(1)
 		user := model.UserResponse{}
@@ -35,7 +35,7 @@ func DeleteUser(s eswagger.UserInterface) http.HandlerFunc {
 	}
 }
 
-func UpdateUser(s eswagger.UserInterface) http.HandlerFunc {
+func UpdateUser(s model.UserInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req model.UpdateUserRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -59,7 +59,7 @@ func main() {
 		DocPath:     "doc",
 	})
 
-	var userSvc eswagger.UserInterface
+	var userSvc model.UserInterface
 	// Register routes
 	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
 	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("DELETE")
