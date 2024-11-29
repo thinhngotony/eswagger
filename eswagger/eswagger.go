@@ -236,6 +236,7 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 
 			// Add doc
 			fieldSchema.Description = field.Tag.Get("doc")
+			fieldSchema.Example = field.Tag.Get("example")
 
 			schema.Properties[jsonTag] = *fieldSchema
 
