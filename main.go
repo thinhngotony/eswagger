@@ -18,7 +18,7 @@ func CreateUser(s eswagger.TonyTest) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		data, err := s.CreateUser(req)
+		data, err := s.CreateUser(&req)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

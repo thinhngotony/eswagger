@@ -182,7 +182,7 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 	return operation
 }
 
-func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
+func (g *Generator) generateSchemaOld(t reflect.Type) *spec.Schema {
 	schema := &spec.Schema{
 		SchemaProps: spec.SchemaProps{
 			Type:       []string{"object"},
@@ -201,6 +201,59 @@ func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
 		if fieldSchema != nil {
 			schema.Properties[jsonTag] = *fieldSchema
 			if !g.isOptionalField(field) {
+				schema.Required = append(schema.Required, jsonTag)
+			}
+		}
+	}
+
+	return schema
+}
+
+func (g *Generator) generateSchema(t reflect.Type) *spec.Schema {
+
+	// Safely handle nil and pointer types
+	if t == nil {
+		return nil
+	}
+
+	// Handle pointer types by unwrapping them
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	schema := &spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Type:       []string{"object"},
+			Properties: make(map[string]spec.Schema),
+		},
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		jsonTag := strings.Split(field.Tag.Get("json"), ",")[0]
+		if jsonTag == "" || jsonTag == "-" {
+			continue
+		}
+
+		// Handle pointer fields
+		fieldType := field.Type
+		isPointer := false
+		if fieldType.Kind() == reflect.Ptr {
+			isPointer = true
+			fieldType = fieldType.Elem()
+		}
+
+		fieldSchema := g.getFieldSchema(fieldType)
+		if fieldSchema != nil {
+			// If the field is a pointer, mark it as nullable
+			if isPointer {
+				fieldSchema.Nullable = true
+			}
+
+			schema.Properties[jsonTag] = *fieldSchema
+
+			// Only add to required if it's not a pointer field
+			if !isPointer && !g.isOptionalField(field) {
 				schema.Required = append(schema.Required, jsonTag)
 			}
 		}
@@ -571,11 +624,29 @@ func (g *Generator) RegisterEndpoint(path, method string, requestType, responseT
 
 	mapping := TypeMapping{}
 	if requestType != nil {
-		mapping.RequestType = reflect.TypeOf(requestType)
+		// Handle both pointer and non-pointer types
+		reqType := reflect.TypeOf(requestType)
+
+		// If it's a pointer, get the underlying type
+		if reqType.Kind() == reflect.Ptr {
+			reqType = reqType.Elem()
+		}
+
+		log.Println(">>> Request type:", reqType)
+		mapping.RequestType = reqType
 		g.registerType(requestType)
 	}
+
 	if responseType != nil {
-		mapping.ResponseType = reflect.TypeOf(responseType)
+		// Handle both pointer and non-pointer types
+		respType := reflect.TypeOf(responseType)
+
+		// If it's a pointer, get the underlying type
+		if respType.Kind() == reflect.Ptr {
+			respType = respType.Elem()
+		}
+
+		mapping.ResponseType = respType
 		g.registerType(responseType)
 	}
 
@@ -592,8 +663,17 @@ func (g *Generator) registerType(t interface{}) {
 }
 
 func (g *Generator) getRequestSchema(path, method string) string {
-	if mapping, ok := g.typeMappings[path][method]; ok && mapping.RequestType != nil {
-		return "#/definitions/" + mapping.RequestType.Name()
+	log.Printf("[INFO] getRequestSchema called with path: %s, method: %s", path, method)
+	if mapping, ok := g.typeMappings[path][method]; ok {
+		log.Printf("[INFO] Mapping found for path: %s, method: %s", path, method)
+		if mapping.RequestType != nil {
+			log.Printf("[INFO] Request type found for path: %s, method: %s - %s", path, method, mapping.RequestType.Name())
+			return "#/definitions/" + mapping.RequestType.Name()
+		} else {
+			log.Printf("[ERROR] No request type found for path: %s, method: %s", path, method)
+		}
+	} else {
+		log.Printf("[ERROR] No mapping found for path: %s, method: %s", path, method)
 	}
 	return ""
 }
@@ -704,8 +784,8 @@ func (m UserSvc) DeleteUser(id int) error {
 	return nil
 }
 
-func GetInterfaceMethods(i interface{}) (map[string]MethodStructs, error) {
-	methods := make(map[string]MethodStructs)
+func GetInterfaceMethods(i interface{}) (map[string]*MethodStructs, error) {
+	methods := make(map[string]*MethodStructs)
 	val := reflect.ValueOf(i)
 	typ := reflect.TypeOf(i)
 
@@ -728,8 +808,8 @@ func GetInterfaceMethods(i interface{}) (map[string]MethodStructs, error) {
 				outputInstance = reflect.New(outputType).Elem().Interface()
 			}
 
-			// Store the instances in the map
-			methods[methodName] = MethodStructs{
+			// Store the instances in the map as a pointer
+			methods[methodName] = &MethodStructs{
 				Input:  inputInstance,
 				Output: outputInstance,
 			}
@@ -738,8 +818,8 @@ func GetInterfaceMethods(i interface{}) (map[string]MethodStructs, error) {
 	return methods, nil
 }
 
-func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]MethodStructs, error) {
-	methods := make(map[string]MethodStructs)
+func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]*MethodStructs, error) {
+	methods := make(map[string]*MethodStructs)
 
 	// Check if input is nil
 	if interfaceType == nil {
@@ -756,26 +836,40 @@ func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]MethodStruc
 		method := interfaceType.Method(i)
 		methodType := method.Type
 
-		// We expect methods to have at least one input (receiver) and one output
-		if methodType.NumIn() >= 1 && methodType.NumOut() >= 1 {
-			// Get the first input type (excluding receiver)
-			inputType := methodType.In(0)
-			// Get the first output type
-			outputType := methodType.Out(0)
+		// Initialize method struct
+		methodStruct := &MethodStructs{}
 
-			// Create instances for struct types
-			var inputInstance, outputInstance interface{}
-			if inputType.Kind() == reflect.Struct {
+		// Find first struct-like input type (skipping receiver)
+		var inputInstance interface{}
+		for j := 0; j < methodType.NumIn(); j++ {
+			inputType := methodType.In(j)
+			if inputType.Kind() == reflect.Ptr {
+				inputInstance = reflect.New(inputType.Elem()).Interface()
+				break
+			} else if inputType.Kind() == reflect.Struct {
 				inputInstance = reflect.New(inputType).Elem().Interface()
+				break
 			}
-			if outputType.Kind() == reflect.Struct {
-				outputInstance = reflect.New(outputType).Elem().Interface()
-			}
+		}
+		methodStruct.Input = inputInstance
 
-			methods[method.Name] = MethodStructs{
-				Input:  inputInstance,
-				Output: outputInstance,
+		// Find first struct-like output type
+		var outputInstance interface{}
+		for j := 0; j < methodType.NumOut(); j++ {
+			outputType := methodType.Out(j)
+			if outputType.Kind() == reflect.Ptr {
+				outputInstance = reflect.New(outputType.Elem()).Elem().Interface()
+				break
+			} else if outputType.Kind() == reflect.Struct {
+				outputInstance = reflect.New(outputType).Elem().Interface()
+				break
 			}
+		}
+		methodStruct.Output = outputInstance
+
+		// Add method if either input or output is found
+		if methodStruct.Input != nil || methodStruct.Output != nil {
+			methods[method.Name] = methodStruct
 		}
 	}
 
@@ -783,28 +877,25 @@ func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]MethodStruc
 }
 
 // Helper function to get interface type from an interface definition
-func GetInterfaceMethodsFromType(i interface{}) (map[string]MethodStructs, error) {
-	// Get the type of the interface
+func GetInterfaceMethodsFromType(i interface{}) (map[string]*MethodStructs, error) {
 	t := reflect.TypeOf(i)
 	if t == nil {
 		return nil, fmt.Errorf("input is nil")
 	}
 
-	// If it's a pointer, get the element type
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
+	if t.Kind() != reflect.Ptr || (t.Kind() == reflect.Ptr && t.Elem().Kind() != reflect.Interface) {
+		return nil, fmt.Errorf("input is not an interface or pointer to interface")
 	}
 
-	// Ensure we're working with an interface
-	if t.Kind() != reflect.Interface {
-		return nil, fmt.Errorf("input is not an interface type")
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
 
 	return GetInterfaceTypeMethods(t)
 }
 
 type TonyTest interface {
-	CreateUser(input model.Tony) (User, error)
+	CreateUser(input *model.Tony) (User, error)
 	UpdateUser(input UpdateUserRequest) (User, error)
 	DeleteUser(id int) error
 }
@@ -829,13 +920,6 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 		if !exists {
 			pathItem = spec.PathItem{}
 		}
-
-		// rest := UserSvc{}
-		// methodStructs, err := GetInterfaceMethods(rest)
-		// if err != nil {
-		// 	log.Printf("Warning: couldn't get interface methods: %v", err)
-		// 	return nil
-		// }
 
 		methodStructs, err := GetInterfaceMethodsFromType((*TonyTest)(nil))
 		if err != nil {
