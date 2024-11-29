@@ -26,7 +26,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/RequestStruct"
+              "$ref": "#/definitions/CreateUserStruct"
             }
           }
         ],
@@ -34,7 +34,7 @@
           "201": {
             "description": "Created",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/UserResponse"
             },
             "examples": {
               "application/json": {
@@ -83,7 +83,7 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/User"
+              "$ref": "#/definitions/UserResponse"
             },
             "examples": {
               "application/json": {
@@ -127,7 +127,7 @@
     }
   },
   "definitions": {
-    "RequestStruct": {
+    "CreateUserStruct": {
       "type": "object",
       "required": [
         "id"
@@ -167,33 +167,33 @@
         "update_email": {
           "description": "Update the email of the user",
           "type": "string",
-          "example": ""
+          "example": "johnny@example.com"
         },
         "update_username": {
           "description": "Update the username of the user",
           "type": "string",
-          "example": ""
+          "example": "johnny_bravo"
         }
       }
     },
-    "User": {
+    "UserResponse": {
       "type": "object",
       "properties": {
         "email": {
-          "description": "description=User's email address;example=john@example.com;required=true",
+          "description": "User's email address",
           "type": "string",
-          "example": ""
+          "example": "john@example.com"
         },
         "id": {
-          "description": "description=Unique identifier for the user;example=1;required=true",
+          "description": "Unique identifier for the user",
           "type": "integer",
           "format": "int64",
-          "example": ""
+          "example": "1"
         },
         "username": {
-          "description": "description=Username for login;example=john_doe;required=true;format=email",
+          "description": "Username for login",
           "type": "string",
-          "example": ""
+          "example": "john_doe"
         }
       }
     }

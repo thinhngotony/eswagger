@@ -11,9 +11,9 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-func CreateUser(s eswagger.TonyTest) http.HandlerFunc {
+func CreateUser(s eswagger.UserInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req model.RequestStruct
+		var req model.CreateUserStruct
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -27,15 +27,15 @@ func CreateUser(s eswagger.TonyTest) http.HandlerFunc {
 	}
 }
 
-func DeleteUser(s eswagger.TonyTest) http.HandlerFunc {
+func DeleteUser(s eswagger.UserInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s.DeleteUser(1)
-		user := eswagger.User{}
+		user := model.UserResponse{}
 		json.NewEncoder(w).Encode(user)
 	}
 }
 
-func UpdateUser(s eswagger.TonyTest) http.HandlerFunc {
+func UpdateUser(s eswagger.UserInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req model.UpdateUserRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -43,7 +43,7 @@ func UpdateUser(s eswagger.TonyTest) http.HandlerFunc {
 			return
 		}
 		s.UpdateUser(req)
-		user := eswagger.User{ID: 1, Username: req.Username, Email: req.Email}
+		user := model.UserResponse{ID: 1, Username: req.Username, Email: req.Email}
 		json.NewEncoder(w).Encode(user)
 	}
 }
@@ -59,7 +59,7 @@ func main() {
 		DocPath:     "doc",
 	})
 
-	var userSvc eswagger.TonyTest
+	var userSvc eswagger.UserInterface
 	// Register routes
 	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
 	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("DELETE")

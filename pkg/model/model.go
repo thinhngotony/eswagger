@@ -1,6 +1,8 @@
 package model
 
-type RequestStruct struct {
+import "time"
+
+type CreateUserStruct struct {
 	ID        int    `json:"id" validate:"required" doc:"Unique identifier for the user" example:"1"`
 	Username  string `json:"username" doc:"Username for login" example:"john_doe"`
 	Email     string `json:"email" doc:"User's email address" example:"john@example.com"`
@@ -9,6 +11,19 @@ type RequestStruct struct {
 }
 
 type UpdateUserRequest struct {
-	Username string `json:"update_username,omitempty" doc:"Update the username of the user"`
-	Email    string `json:"update_email,omitempty" doc:"Update the email of the user"`
+	Username string `json:"update_username,omitempty" doc:"Update the username of the user" example:"johnny_bravo"`
+	Email    string `json:"update_email,omitempty" doc:"Update the email of the user" example:"johnny@example.com"`
+}
+
+// Enhanced struct tags for better documentation
+type UserResponse struct {
+	ID        int       `json:"id" doc:"Unique identifier for the user" example:"1"`
+	Username  string    `json:"username" doc:"Username for login" example:"john_doe"`
+	Email     string    `json:"email" doc:"User's email address" example:"john@example.com"`
+	CreatedAt time.Time `json:"created_at" doc:"Timestamp of user creation" example:"2024-01-01T00:00:00Z"`
+}
+
+type CreateUserRequest struct {
+	Username string `json:"username" example:"john_doe" doc:"description=Desired username for new account"`
+	Email    string `json:"email" example:"john@example.com" doc:"description=Email address for notifications"`
 }

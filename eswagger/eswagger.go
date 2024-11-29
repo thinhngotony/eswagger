@@ -331,19 +331,6 @@ type FieldMetadata struct {
 	Enum        []string
 }
 
-// Enhanced struct tags for better documentation
-type User struct {
-	ID        int       `json:"id" doc:"description=Unique identifier for the user;example=1;required=true"`
-	Username  string    `json:"username" doc:"description=Username for login;example=john_doe;required=true;format=email"`
-	Email     string    `json:"email" doc:"description=User's email address;example=john@example.com;required=true"`
-	CreatedAt time.Time `json:"created_at" doc:"description=Timestamp of user creation;example=2024-01-01T00:00:00Z"`
-}
-
-type CreateUserRequest struct {
-	Username string `json:"username" doc:"description=Desired username for new account;example=john_doe;required=true"`
-	Email    string `json:"email" doc:"description=Email address for notifications;example=john@example.com;required=true;format=email"`
-}
-
 // ExampleGenerator handles example generation for different types
 type ExampleGenerator struct {
 	customExamples map[reflect.Type]interface{}
@@ -760,12 +747,12 @@ type MethodStructs struct {
 
 type UserSvc struct{}
 
-func (m UserSvc) CreateUser(input CreateUserRequest) (User, error) {
-	return User{ID: 1, Username: input.Username, Email: input.Email}, nil
+func (m UserSvc) CreateUser(input model.CreateUserRequest) (model.UserResponse, error) {
+	return model.UserResponse{ID: 1, Username: input.Username, Email: input.Email}, nil
 }
 
-func (m UserSvc) UpdateUser(input model.UpdateUserRequest) (User, error) {
-	return User{ID: 1, Username: input.Username, Email: input.Email}, nil
+func (m UserSvc) UpdateUser(input model.UpdateUserRequest) (model.UserResponse, error) {
+	return model.UserResponse{ID: 1, Username: input.Username, Email: input.Email}, nil
 }
 
 func (m UserSvc) DeleteUser(id int) error {
@@ -882,9 +869,9 @@ func GetInterfaceMethodsFromType(i interface{}) (map[string]*MethodStructs, erro
 	return GetInterfaceTypeMethods(t)
 }
 
-type TonyTest interface {
-	CreateUser(input *model.RequestStruct) (User, error)
-	UpdateUser(input model.UpdateUserRequest) (User, error)
+type UserInterface interface {
+	CreateUser(input *model.CreateUserStruct) (model.UserResponse, error)
+	UpdateUser(input model.UpdateUserRequest) (model.UserResponse, error)
 	DeleteUser(id int) error
 }
 
@@ -909,7 +896,7 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 			pathItem = spec.PathItem{}
 		}
 
-		methodStructs, err := GetInterfaceMethodsFromType((*TonyTest)(nil))
+		methodStructs, err := GetInterfaceMethodsFromType((*UserInterface)(nil))
 		if err != nil {
 			log.Printf("Warning: couldn't get interface methods: %v", err)
 			return nil
