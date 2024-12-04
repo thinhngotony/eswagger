@@ -9,9 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/gorilla/mux"
@@ -42,11 +40,6 @@ type EndpointMetadata struct {
 
 type RouteMetadata struct {
 	Endpoints map[string]map[string]EndpointMetadata // path -> method -> metadata
-}
-
-func (g *Generator) convertMuxPathToSwagger(muxPath string) string {
-	// Convert {param} to {param}
-	return muxPath
 }
 
 func (g *Generator) addOperationToPathItem(pathItem *spec.PathItem, method string, operation *spec.Operation) {
@@ -127,23 +120,23 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 	}
 
 	// Add request body for POST/PUT/PATCH
-	if method == "POST" || method == "PUT" || method == "PATCH" {
-		reqSchema := g.getRequestSchema(path, method)
-		if reqSchema != "" {
-			operation.Parameters = append(operation.Parameters, spec.Parameter{
-				ParamProps: spec.ParamProps{
-					Name:     "body",
-					In:       "body",
-					Required: true,
-					Schema: &spec.Schema{
-						SchemaProps: spec.SchemaProps{
-							Ref: spec.MustCreateRef(reqSchema),
-						},
+	//if method == "POST" || method == "PUT" || method == "PATCH" {
+	reqSchema := g.getRequestSchema(path, method)
+	if reqSchema != "" {
+		operation.Parameters = append(operation.Parameters, spec.Parameter{
+			ParamProps: spec.ParamProps{
+				Name:     "body",
+				In:       "body",
+				Required: true,
+				Schema: &spec.Schema{
+					SchemaProps: spec.SchemaProps{
+						Ref: spec.MustCreateRef(reqSchema),
 					},
 				},
-			})
-		}
+			},
+		})
 	}
+	//}
 
 	// Add path parameters - Fixed version using proper Swagger 2.0 format
 	if strings.Contains(path, "{id}") {
@@ -164,7 +157,7 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 	return operation
 }
 
-func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
+func (g *Generator) generateRequestOld(t reflect.Type) *spec.Schema {
 
 	// Safely handle nil and pointer types
 	if t == nil {
@@ -213,6 +206,93 @@ func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
 			// Only add to required if it's not a pointer field
 			if !isPointer && g.isRequiredField(field) {
 				schema.Required = append(schema.Required, jsonTag)
+			}
+		}
+	}
+
+	return schema
+}
+
+func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
+	// Safely handle nil and pointer types
+	if t == nil {
+		return nil
+	}
+
+	// Handle pointer types by unwrapping them
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	schema := &spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Type:       []string{"object"},
+			Properties: make(map[string]spec.Schema),
+		},
+	}
+
+	// Use a map to track processed field names to handle embedded structs
+	processedFields := make(map[string]bool)
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+
+		// Handle embedded structs
+		if field.Anonymous {
+			embeddedSchema := g.generateRequest(field.Type)
+			if embeddedSchema != nil {
+				for propName, propSchema := range embeddedSchema.Properties {
+					if _, exists := processedFields[propName]; !exists {
+						schema.Properties[propName] = propSchema
+						processedFields[propName] = true
+					}
+				}
+				// Add any required fields from embedded struct
+				schema.Required = append(schema.Required, embeddedSchema.Required...)
+			}
+			continue
+		}
+
+		jsonTag, _ := field.Tag.Lookup("json")
+		jsonParts := strings.Split(jsonTag, ",")
+		fieldName := jsonParts[0]
+
+		if fieldName == "" || fieldName == "-" {
+			continue
+		}
+
+		// Handle pointer fields
+		fieldType := field.Type
+		isPointer := false
+		if fieldType.Kind() == reflect.Ptr {
+			isPointer = true
+			fieldType = fieldType.Elem()
+		}
+
+		fieldSchema := g.getFieldSchema(fieldType)
+		if fieldSchema != nil {
+			// If the field is a pointer, mark it as nullable
+			if isPointer {
+				fieldSchema.Nullable = true
+			}
+
+			// Set description from doc tag
+			docTag := field.Tag.Get("doc")
+			if docTag != "" {
+				fieldSchema.Description = docTag
+			}
+
+			// Set example from example tag
+			exampleTag := field.Tag.Get("example")
+			if exampleTag != "" {
+				fieldSchema.Example = exampleTag
+			}
+
+			schema.Properties[fieldName] = *fieldSchema
+
+			// Only add to required if it's not a pointer field
+			if !isPointer && g.isRequiredField(field) {
+				schema.Required = append(schema.Required, fieldName)
 			}
 		}
 	}
@@ -458,136 +538,6 @@ func (g *ExampleGenerator) getExampleFromTag(field reflect.StructField) interfac
 	// return convertExample(example.Value, field.Type)
 }
 
-// Enhanced schema generation with documentation
-func (g *Generator) generateSchemaWithDocs(t reflect.Type) *spec.Schema {
-	schema := &spec.Schema{
-		SchemaProps: spec.SchemaProps{
-			Type:       []string{"object"},
-			Properties: make(map[string]spec.Schema),
-		},
-	}
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		jsonTag := strings.Split(field.Tag.Get("json"), ",")[0]
-		if jsonTag == "" || jsonTag == "-" {
-			continue
-		}
-
-		metadata := g.extractFieldMetadata(field)
-		fieldSchema := g.getFieldSchemaWithDocs(field.Type, metadata)
-
-		if fieldSchema != nil {
-			schema.Properties[jsonTag] = *fieldSchema
-			if metadata.Required {
-				schema.Required = append(schema.Required, jsonTag)
-			}
-		}
-	}
-
-	// Add examples if available
-	if example := g.exampleGenerator.GenerateExample(t); example != nil {
-		exampleBytes, err := json.Marshal(example)
-		if err == nil {
-			schema.Example = json.RawMessage(exampleBytes)
-		}
-	}
-
-	return schema
-}
-
-func (g *Generator) extractFieldMetadata(field reflect.StructField) FieldMetadata {
-	docTag := field.Tag.Get("doc")
-	if docTag == "" {
-		return FieldMetadata{}
-	}
-
-	tags, err := structtag.Parse(docTag)
-	if err != nil {
-		return FieldMetadata{}
-	}
-
-	metadata := FieldMetadata{}
-
-	if desc, err := tags.Get("description"); err == nil {
-		metadata.Description = desc.Name // Change from desc.Value to desc.Name
-	}
-
-	if example, err := tags.Get("example"); err == nil {
-		metadata.Example = convertExample(example.Name, field.Type) // Change from example.Value to example.Name
-	}
-
-	if required, err := tags.Get("required"); err == nil {
-		metadata.Required = required.Name == "true" // Change from required.Value to required.Name
-	}
-
-	if format, err := tags.Get("format"); err == nil {
-		metadata.Format = format.Name // Change from format.Value to format.Name
-	}
-
-	if enum, err := tags.Get("enum"); err == nil {
-		metadata.Enum = strings.Split(enum.Name, ",") // Change from enum.Value to enum.Name
-	}
-
-	return metadata
-}
-
-func (g *Generator) getFieldSchemaWithDocs(t reflect.Type, metadata FieldMetadata) *spec.Schema {
-	schema := g.getFieldSchema(t)
-	if schema == nil {
-		return nil
-	}
-
-	// Add documentation
-	if metadata.Description != "" {
-		schema.Description = metadata.Description
-	}
-
-	if metadata.Example != nil {
-		exampleBytes, err := json.Marshal(metadata.Example)
-		if err == nil {
-			schema.Example = json.RawMessage(exampleBytes)
-		}
-	}
-
-	if metadata.Format != "" {
-		schema.Format = metadata.Format
-	}
-
-	if len(metadata.Enum) > 0 {
-		for _, enum := range metadata.Enum {
-			schema.Enum = append(schema.Enum, enum)
-		}
-	}
-
-	return schema
-}
-
-func convertExample(value string, t reflect.Type) interface{} {
-	switch t.Kind() {
-	case reflect.String:
-		return value
-	case reflect.Int, reflect.Int64:
-		i, _ := strconv.ParseInt(value, 10, 64)
-		return i
-	case reflect.Float64:
-		f, _ := strconv.ParseFloat(value, 64)
-		return f
-	case reflect.Bool:
-		b, _ := strconv.ParseBool(value)
-		return b
-	case reflect.Struct:
-		// Handle time.Time specially
-		if t == reflect.TypeOf(time.Time{}) {
-			t, _ := time.Parse(time.RFC3339, value)
-			return t
-		}
-		return value
-	default:
-		return value
-	}
-}
-
 func NewGenerator(config Config) *Generator {
 	return &Generator{
 		swagger: &spec.Swagger{
@@ -683,33 +633,6 @@ func (g *Generator) getResponseType(path, method string) reflect.Type {
 	return nil
 }
 
-// generateExample creates an example instance of the given type
-func (g *Generator) generateExample(t reflect.Type) interface{} {
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	// Create a new instance of the type
-	v := reflect.New(t).Interface()
-
-	// You could add logic here to populate the instance with example data
-	// based on field names or tags
-
-	return v
-}
-
-// RegisterModels registers all model types that should appear in swagger definitions
-func (g *Generator) RegisterModels(models ...interface{}) {
-	for _, m := range models {
-		typ := reflect.TypeOf(m)
-		if typ.Kind() == reflect.Ptr {
-			typ = typ.Elem()
-		}
-		schema := g.generateRequest(typ)
-		g.swagger.Definitions[typ.Name()] = *schema
-	}
-}
-
 type MethodStructs struct {
 	Input  interface{}
 	Output interface{}
@@ -725,7 +648,7 @@ func (m UserSvc) UpdateUser(input model.UpdateUserRequest) (model.UserResponse, 
 	return model.UserResponse{ID: 1, Username: input.Username, Email: input.Email}, nil
 }
 
-func (m UserSvc) DeleteUser(id int) error {
+func (m UserSvc) DeleteUser(_ int) error {
 	return nil
 }
 
@@ -853,8 +776,7 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 
 		// Store updated PathItem
 		pathItems[pathTemplate] = pathItem
-		swaggerPath := g.convertMuxPathToSwagger(pathTemplate)
-		g.swagger.Paths.Paths[swaggerPath] = pathItem
+		g.swagger.Paths.Paths[pathTemplate] = pathItem
 
 		return nil
 	})

@@ -8,7 +8,7 @@
   "basePath": "/api/v1",
   "paths": {
     "/users": {
-      "post": {
+      "get": {
         "description": "create User",
         "consumes": [
           "application/json"
@@ -31,8 +31,8 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": "Created",
+          "200": {
+            "description": "OK",
             "schema": {
               "$ref": "#/definitions/UserResponse"
             }
@@ -113,35 +113,16 @@
   "definitions": {
     "CreateUserStruct": {
       "type": "object",
-      "required": [
-        "id"
-      ],
       "properties": {
-        "email": {
-          "description": "User's email address",
+        "update_email": {
+          "description": "Update the email of the user",
           "type": "string",
-          "example": "john@example.com"
+          "example": "johnny@example.com"
         },
-        "first_name": {
-          "description": "First name of the user",
+        "update_username": {
+          "description": "Update the username of the user",
           "type": "string",
-          "example": "John"
-        },
-        "id": {
-          "description": "Unique identifier for the user",
-          "type": "integer",
-          "format": "int64",
-          "example": "1"
-        },
-        "last_name": {
-          "description": "Last name of the user",
-          "type": "string",
-          "example": "Doe"
-        },
-        "username": {
-          "description": "Username for login",
-          "type": "string",
-          "example": "john_doe"
+          "example": "johnny_bravo"
         }
       }
     },
