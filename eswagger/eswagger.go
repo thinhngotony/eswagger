@@ -641,11 +641,11 @@ type MethodStructs struct {
 type UserSvc struct{}
 
 func (m UserSvc) CreateUser(input model.CreateUserRequest) (model.UserResponse, error) {
-	return model.UserResponse{ID: 1, Username: input.Username, Email: input.Email}, nil
+	return model.UserResponse{Info: []model.Info{{ID: 1, Username: input.Username, Email: input.Email}}}, nil
 }
 
 func (m UserSvc) UpdateUser(input model.UpdateUserRequest) (model.UserResponse, error) {
-	return model.UserResponse{ID: 1, Username: input.Username, Email: input.Email}, nil
+	return model.UserResponse{Info: []model.Info{{ID: 1, Username: input.Username, Email: input.Email}}}, nil
 }
 
 func (m UserSvc) DeleteUser(_ int) error {

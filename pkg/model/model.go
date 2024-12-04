@@ -3,7 +3,7 @@ package model
 import "time"
 
 type UserInterface interface {
-	CreateUser(*CreateUserStruct) (UserResponse, error)
+	CreateUser(*CreateUserStruct) (*UserResponse, error)
 	UpdateUser(input UpdateUserRequest) (UserResponse, error)
 	DeleteUser(id int) error
 }
@@ -23,6 +23,9 @@ type UpdateUserRequest struct {
 }
 
 type UserResponse struct {
+	Info []Info
+}
+type Info struct {
 	ID         int       `json:"id" doc:"Unique identifier for the user" example:"1"`
 	Username   string    `json:"username" doc:"Username for login" example:"john_doe"`
 	Email      string    `json:"email" doc:"User's email address" example:"john@example.com"`

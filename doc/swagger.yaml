@@ -142,30 +142,7 @@
       }
     },
     "UserResponse": {
-      "type": "object",
-      "properties": {
-        "email": {
-          "description": "User's email address",
-          "type": "string",
-          "example": "john@example.com"
-        },
-        "id": {
-          "description": "Unique identifier for the user",
-          "type": "integer",
-          "format": "int64",
-          "example": "1"
-        },
-        "is_response": {
-          "description": "bool value to indicate if this is a response",
-          "type": "boolean",
-          "example": "false"
-        },
-        "username": {
-          "description": "Username for login",
-          "type": "string",
-          "example": "john_doe"
-        }
-      }
+      "type": "object"
     }
   }
 }

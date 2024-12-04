@@ -43,7 +43,7 @@ func UpdateUser(s model.UserInterface) http.HandlerFunc {
 			return
 		}
 		s.UpdateUser(req)
-		user := model.UserResponse{ID: 1, Username: req.Username, Email: req.Email}
+		user := model.UserResponse{Info: []model.Info{{ID: 1, Username: req.Username, Email: req.Email}}}
 		json.NewEncoder(w).Encode(user)
 	}
 }
