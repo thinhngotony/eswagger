@@ -224,6 +224,48 @@ func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
 		t = t.Elem()
 	}
 
+	// Handle slice types
+	if t.Kind() == reflect.Slice {
+		// Get the element type of the slice
+		elemType := t.Elem()
+
+		// If the element is a struct, generate its schema
+		if elemType.Kind() == reflect.Struct {
+			elemSchema := g.generateRequest(elemType)
+			if elemSchema != nil {
+				return &spec.Schema{
+					SchemaProps: spec.SchemaProps{
+						Type: []string{"array"},
+						Items: &spec.SchemaOrArray{
+							Schema: elemSchema,
+						},
+					},
+				}
+			}
+		}
+
+		// For basic types, use getFieldSchema
+		elemSchema := g.getFieldSchema(elemType)
+		if elemSchema != nil {
+			return &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"array"},
+					Items: &spec.SchemaOrArray{
+						Schema: elemSchema,
+					},
+				},
+			}
+		}
+
+		return nil
+	}
+
+	// Handle struct types
+	if t.Kind() != reflect.Struct {
+		// If it's not a struct, try to get field schema
+		return g.getFieldSchema(t)
+	}
+
 	schema := &spec.Schema{
 		SchemaProps: spec.SchemaProps{
 			Type:       []string{"object"},
@@ -241,10 +283,12 @@ func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
 		if field.Anonymous {
 			embeddedSchema := g.generateRequest(field.Type)
 			if embeddedSchema != nil {
-				for propName, propSchema := range embeddedSchema.Properties {
-					if _, exists := processedFields[propName]; !exists {
-						schema.Properties[propName] = propSchema
-						processedFields[propName] = true
+				if embeddedSchema.Properties != nil {
+					for propName, propSchema := range embeddedSchema.Properties {
+						if _, exists := processedFields[propName]; !exists {
+							schema.Properties[propName] = propSchema
+							processedFields[propName] = true
+						}
 					}
 				}
 				// Add any required fields from embedded struct
@@ -261,7 +305,7 @@ func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
 			continue
 		}
 
-		// Handle pointer fields
+		// Handle pointer and slice fields
 		fieldType := field.Type
 		isPointer := false
 		if fieldType.Kind() == reflect.Ptr {
@@ -269,7 +313,7 @@ func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
 			fieldType = fieldType.Elem()
 		}
 
-		fieldSchema := g.getFieldSchema(fieldType)
+		fieldSchema := g.generateRequest(fieldType)
 		if fieldSchema != nil {
 			// If the field is a pointer, mark it as nullable
 			if isPointer {
@@ -359,6 +403,23 @@ func (g *Generator) isRequiredField(field reflect.StructField) bool {
 }
 
 func (g *Generator) getFieldSchema(t reflect.Type) *spec.Schema {
+	// Handle slice types
+	if t.Kind() == reflect.Slice {
+		elemType := t.Elem()
+		elemSchema := g.getFieldSchema(elemType)
+		if elemSchema != nil {
+			return &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Type: []string{"array"},
+					Items: &spec.SchemaOrArray{
+						Schema: elemSchema,
+					},
+				},
+			}
+		}
+		return nil
+	}
+
 	switch t.Kind() {
 	case reflect.String:
 		return &spec.Schema{
@@ -386,21 +447,9 @@ func (g *Generator) getFieldSchema(t reflect.Type) *spec.Schema {
 				Type: []string{"boolean"},
 			},
 		}
-	case reflect.Slice:
-		items := g.getFieldSchema(t.Elem())
-		if items != nil {
-			return &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Type:  []string{"array"},
-					Items: &spec.SchemaOrArray{Schema: items},
-				},
-			}
-		}
 	default:
-		//TODO("unhandled default case")
 		return nil
 	}
-	return nil
 }
 
 type TypeMapping struct {

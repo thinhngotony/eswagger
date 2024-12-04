@@ -26,7 +26,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/CreateUserStruct"
+              "$ref": "#/definitions/"
             }
           }
         ],
@@ -111,18 +111,21 @@
     }
   },
   "definitions": {
-    "CreateUserStruct": {
-      "type": "object",
-      "properties": {
-        "update_email": {
-          "description": "Update the email of the user",
-          "type": "string",
-          "example": "johnny@example.com"
-        },
-        "update_username": {
-          "description": "Update the username of the user",
-          "type": "string",
-          "example": "johnny_bravo"
+    "": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "update_email": {
+            "description": "Update the email of the user",
+            "type": "string",
+            "example": "johnny@example.com"
+          },
+          "update_username": {
+            "description": "Update the username of the user",
+            "type": "string",
+            "example": "johnny_bravo"
+          }
         }
       }
     },

@@ -3,7 +3,7 @@ package model
 import "time"
 
 type UserInterface interface {
-	CreateUser(*CreateUserStruct) (*UserResponse, error)
+	CreateUser(*[]CreateUserStruct) (*UserResponse, error)
 	UpdateUser(input UpdateUserRequest) (UserResponse, error)
 	DeleteUser(id int) error
 }

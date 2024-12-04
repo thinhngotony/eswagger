@@ -13,7 +13,7 @@ import (
 
 func CreateUser(s model.UserInterface) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req model.CreateUserStruct
+		var req []model.CreateUserStruct
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
