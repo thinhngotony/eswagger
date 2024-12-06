@@ -61,7 +61,7 @@ func main() {
 
 	var userSvc model.UserInterface
 	// Register routes
-	r.HandleFunc("/users", CreateUser(userSvc)).Methods("GET")
+	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
 	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("DELETE")
 	r.HandleFunc("/users/{id}", UpdateUser(userSvc)).Methods("PUT")
 
