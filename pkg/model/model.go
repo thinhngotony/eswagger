@@ -3,7 +3,17 @@ package model
 import "time"
 
 type UserInterface interface {
-	CreateUser(*[]CreateUserStruct) (*UserResponse, error)
+	CreateUserPointerSliceToPointerResponse(*[]CreateUserStruct) (*UserResponse, error)
+	NotWork_CreateUserSliceToPointerResponse([]CreateUserStruct) (*UserResponse, error)
+	CreateUserStructToPointerResponse(CreateUserStruct) (*UserResponse, error)
+	CreateUserPointerSliceToSliceResponse(*[]CreateUserStruct) (*[]UserResponse, error)
+	CreateUserPointerSliceToNonPointerSliceResponse(*[]CreateUserStruct) ([]UserResponse, error)
+	CreateUserPointerSliceToNonPointerResponse(*[]CreateUserStruct) (UserResponse, error)
+	CreateUserSliceToSliceResponse([]CreateUserStruct) ([]UserResponse, error)
+	CreateUserStructToSliceResponse(CreateUserStruct) ([]UserResponse, error)
+	CreateUserStructToNonPointerResponse(CreateUserStruct) (UserResponse, error)
+
+	// For another type
 	UpdateUser(input UpdateUserRequest) (UserResponse, error)
 	DeleteUser(id int) error
 }
@@ -14,7 +24,7 @@ type CreateUserStruct struct {
 	// Email     string `json:"email" doc:"User's email address" example:"john@example.com"`
 	// FirstName string `json:"first_name" doc:"First name of the user" example:"John"`
 	// LastName  string `json:"last_name" doc:"Last name of the user" example:"Doe"`
-	UpdateUserRequest
+	*UpdateUserRequest
 }
 
 type UpdateUserRequest struct {

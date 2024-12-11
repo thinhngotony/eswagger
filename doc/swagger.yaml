@@ -8,7 +8,7 @@
   "basePath": "/api/v1",
   "paths": {
     "/users": {
-      "get": {
+      "post": {
         "description": "create User",
         "consumes": [
           "application/json"
@@ -20,6 +20,26 @@
           "users"
         ],
         "summary": "Create User",
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/users/CreateUserPointerSliceToNonPointerResponse": {
+      "post": {
+        "description": "create User Pointer Slice To Non Pointer Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Pointer Slice To Non Pointer Response",
         "parameters": [
           {
             "name": "body",
@@ -31,8 +51,256 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/UserResponse"
+            }
+          }
+        }
+      }
+    },
+    "/users/CreateUserPointerSliceToNonPointerSliceResponse": {
+      "post": {
+        "description": "create User Pointer Slice To Non Pointer Slice Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Pointer Slice To Non Pointer Slice Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/users/CreateUserPointerSliceToPointerResponse": {
+      "post": {
+        "description": "create User Pointer Slice To Pointer Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Pointer Slice To Pointer Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/UserResponse"
+            }
+          }
+        }
+      }
+    },
+    "/users/CreateUserPointerSliceToSliceResponse": {
+      "post": {
+        "description": "create User Pointer Slice To Slice Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Pointer Slice To Slice Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/"
+            }
+          }
+        }
+      }
+    },
+    "/users/CreateUserStructToNonPointerResponse": {
+      "post": {
+        "description": "create User Struct To Non Pointer Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Struct To Non Pointer Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateUserStruct"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/UserResponse"
+            }
+          }
+        }
+      }
+    },
+    "/users/CreateUserStructToNonPointerSliceResponse": {
+      "post": {
+        "description": "create User Struct To Non Pointer Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Struct To Non Pointer Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateUserStruct"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/UserResponse"
+            }
+          }
+        }
+      }
+    },
+    "/users/CreateUserStructToPointerResponse": {
+      "post": {
+        "description": "create User Struct To Pointer Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Struct To Pointer Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateUserStruct"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/UserResponse"
+            }
+          }
+        }
+      }
+    },
+    "/users/CreateUserStructToSliceResponse": {
+      "post": {
+        "description": "create User Struct To Slice Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Create User Struct To Slice Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateUserStruct"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    },
+    "/users/NotWork_CreateUserSliceToPointerResponse": {
+      "post": {
+        "description": "not Work_ Create User Slice To Pointer Response",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "tags": [
+          "users"
+        ],
+        "summary": "Not Work_ Create User Slice To Pointer Response",
+        "responses": {
+          "201": {
+            "description": "Created",
             "schema": {
               "$ref": "#/definitions/UserResponse"
             }
@@ -126,6 +394,21 @@
             "type": "string",
             "example": "johnny_bravo"
           }
+        }
+      }
+    },
+    "CreateUserStruct": {
+      "type": "object",
+      "properties": {
+        "update_email": {
+          "description": "Update the email of the user",
+          "type": "string",
+          "example": "johnny@example.com"
+        },
+        "update_username": {
+          "description": "Update the username of the user",
+          "type": "string",
+          "example": "johnny_bravo"
         }
       }
     },

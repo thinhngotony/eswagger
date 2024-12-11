@@ -1,107 +1,84 @@
 package eswagger
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
 	"unicode"
 
-	"github.com/gorilla/mux"
-
 	"main/pkg/model"
+	"main/pkg/util.go"
 
 	"github.com/fatih/structtag"
 	"github.com/go-openapi/spec"
+	"github.com/gorilla/mux"
 )
 
-type Config struct {
-	Title       string
-	Description string
-	Version     string
-	BasePath    string
-	DocPath     string
-}
+func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
+	pathItems := make(map[string]spec.PathItem)
 
-type EndpointMetadata struct {
-	Summary     string
-	Description string
-	Tags        []string
-	Examples    struct {
-		Request  interface{}
-		Response interface{}
-	}
-}
-
-type RouteMetadata struct {
-	Endpoints map[string]map[string]EndpointMetadata // path -> method -> metadata
-}
-
-func (g *Generator) addOperationToPathItem(pathItem *spec.PathItem, method string, operation *spec.Operation) {
-	switch strings.ToUpper(method) {
-	case "GET":
-		if pathItem.Get == nil {
-			pathItem.Get = operation
-		}
-	case "POST":
-		if pathItem.Post == nil {
-			pathItem.Post = operation
-		}
-	case "PUT":
-		if pathItem.Put == nil {
-			pathItem.Put = operation
-		}
-	case "DELETE":
-		if pathItem.Delete == nil {
-			pathItem.Delete = operation
-		}
-	case "PATCH":
-		if pathItem.Patch == nil {
-			pathItem.Patch = operation
-		}
-	}
-}
-func (g *Generator) SaveSwagger(format string) error {
-	var data []byte
-	var err error
-
-	switch format {
-	case "yaml", "json":
-		data, err = json.MarshalIndent(g.swagger, "", "  ")
+	err := router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+		pathTemplate, err := route.GetPathTemplate()
 		if err != nil {
-			return fmt.Errorf("error marshalling Swagger spec: %v", err)
+			return nil
 		}
-	default:
-		return fmt.Errorf("invalid format specified: %s", format)
+
+		methods, err := route.GetMethods()
+		if err != nil {
+			log.Printf("Warning: couldn't get methods for route %s: %v", pathTemplate, err)
+			return nil
+		}
+
+		// Get existing PathItem or create new one
+		pathItem, exists := pathItems[pathTemplate]
+		if !exists {
+			pathItem = spec.PathItem{}
+		}
+
+		methodStructs, err := GetInterfaceMethodsFromType((*model.UserInterface)(nil))
+		if err != nil {
+			log.Printf("Warning: couldn't get interface methods: %v", err)
+			return nil
+		}
+
+		log.Println("Method structs:", util.ToJSON(methodStructs))
+
+		handler := route.GetHandler()
+		handlerName := g.getHandlerFunctionName(handler)
+
+		// Match handler with method structs and register endpoints
+		for methodName, structs := range methodStructs {
+			if strings.Contains(handlerName, methodName) {
+				for _, method := range methods {
+					log.Printf("Registering endpoint [%v] for method [%v], input [%v], output [%v]",
+						pathTemplate, method, structs.Input, structs.Output)
+					g.RegisterEndpoint(pathTemplate, method, structs.Input, structs.Output)
+				}
+			}
+		}
+
+		// Generate operations for each HTTP method
+		for _, method := range methods {
+			operation := g.generateOperationFromHandler(handler, method, pathTemplate)
+			g.addOperationToPathItem(&pathItem, method, operation)
+		}
+
+		// Store updated PathItem
+		pathItems[pathTemplate] = pathItem
+		g.swagger.Paths.Paths[pathTemplate] = pathItem
+
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("error walking routes: %v", err)
 	}
 
-	filePath := fmt.Sprintf("%s/swagger.%s", g.config.DocPath, format)
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		return fmt.Errorf("error writing swagger file: %v", err)
-	}
-
-	log.Printf("Swagger spec saved to: %s\n", filePath)
 	return nil
-}
-
-func (g *Generator) GetSwaggerSpec() *spec.Swagger {
-	return g.swagger
-}
-
-func (g *Generator) extractResourceName(path string) string {
-
-	parts := strings.Split(path, "/")
-	for _, part := range parts {
-		if part != "" && !strings.Contains(part, "{") {
-			return strings.ToLower(part)
-		}
-	}
-	return "resource"
 }
 
 func (g *Generator) generateOperationFromHandler(handler interface{}, method string, path string) *spec.Operation {
@@ -122,6 +99,8 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 	// Add request body for POST/PUT/PATCH
 	//if method == "POST" || method == "PUT" || method == "PATCH" {
 	reqSchema := g.getRequestSchema(path, method)
+
+	log.Println(">>>>>>>>>>> Request schema:", reqSchema)
 	if reqSchema != "" {
 		operation.Parameters = append(operation.Parameters, spec.Parameter{
 			ParamProps: spec.ParamProps{
@@ -155,62 +134,6 @@ func (g *Generator) generateOperationFromHandler(handler interface{}, method str
 	}
 
 	return operation
-}
-
-func (g *Generator) generateRequestOld(t reflect.Type) *spec.Schema {
-
-	// Safely handle nil and pointer types
-	if t == nil {
-		return nil
-	}
-
-	// Handle pointer types by unwrapping them
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	schema := &spec.Schema{
-		SchemaProps: spec.SchemaProps{
-			Type:       []string{"object"},
-			Properties: make(map[string]spec.Schema),
-		},
-	}
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		jsonTag := strings.Split(field.Tag.Get("json"), ",")[0]
-		if jsonTag == "" || jsonTag == "-" {
-			continue
-		}
-
-		// Handle pointer fields
-		fieldType := field.Type
-		isPointer := false
-		if fieldType.Kind() == reflect.Ptr {
-			isPointer = true
-			fieldType = fieldType.Elem()
-		}
-
-		fieldSchema := g.getFieldSchema(fieldType)
-		if fieldSchema != nil {
-			// If the field is a pointer, mark it as nullable
-			if isPointer {
-				fieldSchema.Nullable = true
-			}
-
-			fieldSchema.Description = field.Tag.Get("doc") // Retrieve the "doc" tag value and set it as the Description
-			fieldSchema.Example = field.Tag.Get("example") // Retrieve the "example" tag value and set it as the Example
-
-			schema.Properties[jsonTag] = *fieldSchema
-
-			// Only add to required if it's not a pointer field
-			if !isPointer && g.isRequiredField(field) {
-				schema.Required = append(schema.Required, jsonTag)
-			}
-		}
-	}
-
-	return schema
 }
 
 func (g *Generator) generateRequest(t reflect.Type) *spec.Schema {
@@ -375,22 +298,16 @@ func (g *Generator) generateResponses(method, path string) *spec.Responses {
 
 	// Get response type from registered mappings
 	if respType := g.getResponseType(path, method); respType != nil && statusCode != http.StatusNoContent {
-		schema = &spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Ref: spec.MustCreateRef("#/definitions/" + respType.Name()),
-			},
-		}
-		response.Schema = schema
+		responseSchema := g.getResponseSchema(path, method)
 
-		// Generate example response
-		//if example := g.generateExample(respType); example != nil {
-		//	exampleBytes, err := json.Marshal(example)
-		//	if err == nil {
-		//		response.Examples = map[string]interface{}{
-		//			"application/json": json.RawMessage(exampleBytes),
-		//		}
-		//	}
-		//}
+		if responseSchema != "" {
+			schema = &spec.Schema{
+				SchemaProps: spec.SchemaProps{
+					Ref: spec.MustCreateRef(responseSchema),
+				},
+			}
+			response.Schema = schema
+		}
 	}
 
 	responses.StatusCodeResponses[statusCode] = response
@@ -643,6 +560,8 @@ func (g *Generator) RegisterEndpoint(path, method string, requestType, responseT
 			respType = respType.Elem()
 		}
 
+		log.Println(">>> Response type:", responseType)
+
 		mapping.ResponseType = respType
 		g.registerType(responseType)
 	}
@@ -675,6 +594,21 @@ func (g *Generator) getRequestSchema(path, method string) string {
 	return ""
 }
 
+func (g *Generator) getResponseSchema(path, method string) string {
+	log.Printf("[INFO] getResponseSchema called with path: %s, method: %s", path, method)
+	if mapping, ok := g.typeMappings[path][method]; ok {
+		log.Printf("[INFO] Mapping found for path: %s, method: %s", path, method)
+		if mapping.ResponseType != nil { // Corrected to check ResponseType
+			log.Printf("[INFO] Response type found for path: %s, method: %s - %s", path, method, mapping.ResponseType.Name())
+			return "#/definitions/" + mapping.ResponseType.Name()
+		} else {
+			log.Printf("[ERROR] No response type found for path: %s, method: %s", path, method)
+		}
+	} else {
+		log.Printf("[ERROR] No mapping found for path: %s, method: %s", path, method)
+	}
+	return ""
+}
 func (g *Generator) getResponseType(path, method string) reflect.Type {
 	if mapping, ok := g.typeMappings[path][method]; ok {
 		return mapping.ResponseType
@@ -775,66 +709,6 @@ func GetInterfaceMethodsFromType(i interface{}) (map[string]*MethodStructs, erro
 	}
 
 	return GetInterfaceTypeMethods(t)
-}
-
-func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
-	pathItems := make(map[string]spec.PathItem)
-
-	err := router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
-		pathTemplate, err := route.GetPathTemplate()
-		if err != nil {
-			return nil
-		}
-
-		methods, err := route.GetMethods()
-		if err != nil {
-			log.Printf("Warning: couldn't get methods for route %s: %v", pathTemplate, err)
-			return nil
-		}
-
-		// Get existing PathItem or create new one
-		pathItem, exists := pathItems[pathTemplate]
-		if !exists {
-			pathItem = spec.PathItem{}
-		}
-
-		methodStructs, err := GetInterfaceMethodsFromType((*model.UserInterface)(nil))
-		if err != nil {
-			log.Printf("Warning: couldn't get interface methods: %v", err)
-			return nil
-		}
-
-		handler := route.GetHandler()
-		handlerName := g.getHandlerFunctionName(handler)
-
-		// Match handler with method structs and register endpoints
-		for methodName, structs := range methodStructs {
-			if strings.Contains(handlerName, methodName) {
-				for _, method := range methods {
-					log.Printf("Registering endpoint [%v] for method [%v], input [%v], output [%v]", pathTemplate, method, structs.Input, structs.Output)
-					g.RegisterEndpoint(pathTemplate, method, structs.Input, structs.Output)
-				}
-			}
-		}
-
-		// Generate operations for each HTTP method
-		for _, method := range methods {
-			operation := g.generateOperationFromHandler(handler, method, pathTemplate)
-			g.addOperationToPathItem(&pathItem, method, operation)
-		}
-
-		// Store updated PathItem
-		pathItems[pathTemplate] = pathItem
-		g.swagger.Paths.Paths[pathTemplate] = pathItem
-
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("error walking routes: %v", err)
-	}
-
-	return nil
 }
 
 func (g *Generator) cleanHandlerName(handlerName string) string {

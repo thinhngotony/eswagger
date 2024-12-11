@@ -5,48 +5,12 @@ import (
 	"log"
 	"main/eswagger"
 	"main/pkg/model"
+	"main/pkg/service"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
-
-func CreateUser(s model.UserInterface) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req []model.CreateUserStruct
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		data, err := s.CreateUser(&req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		json.NewEncoder(w).Encode(data)
-	}
-}
-
-func DeleteUser(s model.UserInterface) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		s.DeleteUser(1)
-		user := model.UserResponse{}
-		json.NewEncoder(w).Encode(user)
-	}
-}
-
-func UpdateUser(s model.UserInterface) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req model.UpdateUserRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		s.UpdateUser(req)
-		user := model.UserResponse{Info: []model.Info{{ID: 1, Username: req.Username, Email: req.Email}}}
-		json.NewEncoder(w).Encode(user)
-	}
-}
 
 func main() {
 	r := mux.NewRouter()
@@ -61,9 +25,18 @@ func main() {
 
 	var userSvc model.UserInterface
 	// Register routes
-	r.HandleFunc("/users", CreateUser(userSvc)).Methods("POST")
-	r.HandleFunc("/users/{id}", DeleteUser(userSvc)).Methods("DELETE")
-	r.HandleFunc("/users/{id}", UpdateUser(userSvc)).Methods("PUT")
+	r.HandleFunc("/users", service.CreateUser(userSvc)).Methods("POST")
+	r.HandleFunc("/users/{id}", service.DeleteUser(userSvc)).Methods("DELETE")
+	r.HandleFunc("/users/{id}", service.UpdateUser(userSvc)).Methods("PUT")
+	r.HandleFunc("/users/CreateUserPointerSliceToPointerResponse", service.CreateUserPointerSliceToPointerResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/NotWork_CreateUserSliceToPointerResponse", service.NotWork_CreateUserSliceToPointerResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/CreateUserStructToPointerResponse", service.CreateUserStructToPointerResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/CreateUserPointerSliceToSliceResponse", service.CreateUserPointerSliceToSliceResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/CreateUserStructToSliceResponse", service.CreateUserStructToSliceResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/CreateUserPointerSliceToNonPointerResponse", service.CreateUserPointerSliceToNonPointerResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/CreateUserStructToNonPointerResponse", service.CreateUserStructToNonPointerResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/CreateUserPointerSliceToNonPointerSliceResponse", service.CreateUserPointerSliceToNonPointerSliceResponse(userSvc)).Methods(http.MethodPost)
+	r.HandleFunc("/users/CreateUserStructToNonPointerSliceResponse", service.CreateUserStructToNonPointerResponse(userSvc)).Methods(http.MethodPost)
 
 	// Generate swagger documentation
 	if err := swaggerGen.GenerateFromRouter(r, eswagger.RouteMetadata{}); err != nil {
