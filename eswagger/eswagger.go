@@ -10,12 +10,10 @@ import (
 	"strings"
 	"unicode"
 
-	"main/pkg/model"
-	"main/pkg/util.go"
-
 	"github.com/fatih/structtag"
 	"github.com/go-openapi/spec"
 	"github.com/gorilla/mux"
+	"main/pkg/model"
 )
 
 func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) error {
@@ -44,8 +42,6 @@ func (g *Generator) GenerateFromRouter(router *mux.Router, _ RouteMetadata) erro
 			log.Printf("Warning: couldn't get interface methods: %v", err)
 			return nil
 		}
-
-		log.Println("Method structs:", util.ToJSON(methodStructs))
 
 		handler := route.GetHandler()
 		handlerName := g.getHandlerFunctionName(handler)
@@ -623,12 +619,12 @@ type MethodStructs struct {
 
 type UserSvc struct{}
 
-func (m UserSvc) CreateUser(input model.CreateUserRequest) (model.UserResponse, error) {
-	return model.UserResponse{Info: []model.Info{{ID: 1, Username: input.Username, Email: input.Email}}}, nil
+func (m UserSvc) CreateUser(_ model.CreateUserRequest) (model.UserResponse, error) {
+	return model.UserResponse{}, nil
 }
 
-func (m UserSvc) UpdateUser(input model.UpdateUserRequest) (model.UserResponse, error) {
-	return model.UserResponse{Info: []model.Info{{ID: 1, Username: input.Username, Email: input.Email}}}, nil
+func (m UserSvc) UpdateUser(_ model.UpdateUserRequest) (model.UserResponse, error) {
+	return model.UserResponse{}, nil
 }
 
 func (m UserSvc) DeleteUser(_ int) error {
@@ -660,13 +656,7 @@ func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]*MethodStru
 		var inputInstance interface{}
 		for j := 0; j < methodType.NumIn(); j++ {
 			inputType := methodType.In(j)
-			if inputType.Kind() == reflect.Ptr {
-				inputInstance = reflect.New(inputType.Elem()).Interface()
-				break
-			} else if inputType.Kind() == reflect.Struct {
-				inputInstance = reflect.New(inputType).Elem().Interface()
-				break
-			}
+			inputInstance = reflect.New(inputType).Elem().Interface()
 		}
 		methodStruct.Input = inputInstance
 
@@ -674,13 +664,14 @@ func GetInterfaceTypeMethods(interfaceType reflect.Type) (map[string]*MethodStru
 		var outputInstance interface{}
 		for j := 0; j < methodType.NumOut(); j++ {
 			outputType := methodType.Out(j)
-			if outputType.Kind() == reflect.Ptr {
-				outputInstance = reflect.New(outputType.Elem()).Elem().Interface()
-				break
-			} else if outputType.Kind() == reflect.Struct {
-				outputInstance = reflect.New(outputType).Elem().Interface()
-				break
-			}
+			//if outputType.Kind() == reflect.Ptr {
+			//	outputInstance = reflect.New(outputType.Elem()).Elem().Interface()
+			//	break
+			//} else if outputType.Kind() == reflect.Struct {
+			//	outputInstance = reflect.New(outputType).Elem().Interface()
+			//	break
+			//}
+			outputInstance = reflect.New(outputType).Elem().Interface()
 		}
 		methodStruct.Output = outputInstance
 
@@ -819,18 +810,8 @@ func ExtractFuncName(input string) string {
 
 // Add this new helper method to extract the resource name from the handler name
 func (g *Generator) getResourceFromHandler(handlerName string) string {
-	// Remove common prefixes
-
-	name := strings.TrimPrefix(strings.ToLower(handlerName), "create")
-
-	name = strings.TrimPrefix(name, "update")
-	name = strings.TrimPrefix(name, "delete")
-	name = strings.TrimPrefix(name, "get")
-	name = strings.TrimPrefix(name, "post")
-	name = strings.TrimPrefix(name, "put")
-
 	// Clean up any remaining spaces and convert first character to lower case
-	name = strings.TrimSpace(handlerName)
+	name := strings.TrimSpace(handlerName)
 	if len(name) > 0 {
 		return strings.ToLower(name[:1]) + name[1:]
 	}

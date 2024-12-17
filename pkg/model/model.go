@@ -3,7 +3,9 @@ package model
 import "time"
 
 type UserInterface interface {
-	CreateUserPointerSliceToPointerResponse(*[]CreateUserStruct) (*UserResponse, error)
+	// NOTE If API not appears in here, it cannot generate model, it just can show endpoint
+
+	CreateUserPointerSliceToPointerResponse(*CreateUserStruct) (*UserResponse, error)
 	NotWork_CreateUserSliceToPointerResponse([]CreateUserStruct) (*UserResponse, error)
 	CreateUserStructToPointerResponse(CreateUserStruct) (*UserResponse, error)
 	CreateUserPointerSliceToSliceResponse(*[]CreateUserStruct) (*[]UserResponse, error)
@@ -24,7 +26,10 @@ type CreateUserStruct struct {
 	// Email     string `json:"email" doc:"User's email address" example:"john@example.com"`
 	// FirstName string `json:"first_name" doc:"First name of the user" example:"John"`
 	// LastName  string `json:"last_name" doc:"Last name of the user" example:"Doe"`
-	*UpdateUserRequest
+	UpdateUserRequest
+	//TODO: These case not work, same for response
+	//UpdateUserRequest []UpdateUserRequest
+	// UpdateUserRequest UpdateUserRequest
 }
 
 type UpdateUserRequest struct {
@@ -33,7 +38,7 @@ type UpdateUserRequest struct {
 }
 
 type UserResponse struct {
-	Info []Info
+	Info
 }
 type Info struct {
 	ID         int       `json:"id" doc:"Unique identifier for the user" example:"1"`

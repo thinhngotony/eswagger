@@ -52,10 +52,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/UserResponse"
-            }
+            "description": "Created"
           }
         }
       }
@@ -109,16 +106,13 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/"
+              "$ref": "#/definitions/CreateUserStruct"
             }
           }
         ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/UserResponse"
-            }
+            "description": "Created"
           }
         }
       }
@@ -148,10 +142,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/"
-            }
+            "description": "Created"
           }
         }
       }
@@ -181,10 +172,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/UserResponse"
-            }
+            "description": "Created"
           }
         }
       }
@@ -214,10 +202,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/UserResponse"
-            }
+            "description": "Created"
           }
         }
       }
@@ -247,10 +232,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/UserResponse"
-            }
+            "description": "Created"
           }
         }
       }
@@ -298,12 +280,19 @@
           "users"
         ],
         "summary": "Not Work_ Create User Slice To Pointer Response",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/"
+            }
+          }
+        ],
         "responses": {
           "201": {
-            "description": "Created",
-            "schema": {
-              "$ref": "#/definitions/UserResponse"
-            }
+            "description": "Created"
           }
         }
       }
@@ -341,10 +330,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/UserResponse"
-            }
+            "description": "OK"
           }
         }
       },
@@ -361,6 +347,14 @@
         ],
         "summary": "Delete User",
         "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/int"
+            }
+          },
           {
             "type": "integer",
             "format": "int64",
@@ -427,8 +421,9 @@
         }
       }
     },
-    "UserResponse": {
-      "type": "object"
+    "int": {
+      "type": "integer",
+      "format": "int64"
     }
   }
 }
